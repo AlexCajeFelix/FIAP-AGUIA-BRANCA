@@ -6,7 +6,8 @@ target/
 *.ear
 !.mvn/wrapper/maven-wrapper.jar
 .mvn/timing.properties
-.mvn/wrapper/maven-wrapper.properties
+!.mvn/wrapper/maven-wrapper.properties
+
 
 # --- Gradle / Android ---
 .gradle/
