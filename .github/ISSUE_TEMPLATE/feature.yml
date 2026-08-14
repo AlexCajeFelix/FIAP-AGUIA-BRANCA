@@ -1,0 +1,45 @@
+name: Feature
+description: Capacidade nova ou mudança de comportamento
+title: "[feat] "
+labels: ["tipo:feat"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options: [backend, android, infra, banco]
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: Por que isso existe. Referencie arquivos ou rotas reais do projeto.
+    validations:
+      required: true
+
+  - type: textarea
+    id: aceite
+    attributes:
+      label: Critério de aceite
+      description: >
+        Itens verificáveis por quem não escreveu o código.
+        Nada de "funcionar corretamente".
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: notas
+    attributes:
+      label: Notas técnicas
+      description: Armadilhas, arquivos a tocar, comandos.
+
+  - type: input
+    id: dependencias
+    attributes:
+      label: Depende de
+      placeholder: "#1, #2"

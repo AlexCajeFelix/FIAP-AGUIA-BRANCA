@@ -1,0 +1,46 @@
+name: Bug
+description: Algo que deveria funcionar e não funciona
+title: "[bug] "
+labels: ["tipo:fix"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options: [backend, android, infra, banco]
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: O que você estava fazendo quando isso apareceu.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducao
+    attributes:
+      label: Como reproduzir
+      description: Passos numerados. Inclua a request (método + rota + body) quando for API.
+      placeholder: |
+        1. POST /auth/login com {"email":"...","senha":"..."}
+        2. GET /projects com o token retornado
+        3. Observar 500
+    validations:
+      required: true
+
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamento esperado vs. obtido
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidencia
+    attributes:
+      label: Evidência
+      description: Stack trace, corpo do ProblemDetail, log ou screenshot.
+      render: text

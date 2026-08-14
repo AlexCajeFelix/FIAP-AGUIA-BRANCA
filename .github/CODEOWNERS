@@ -1,0 +1,10 @@
+# Dono padrão de tudo que não casar com uma regra mais específica abaixo.
+*                       @AlexCajeFelix
+
+# Infraestrutura e pipeline
+/.github/               @AlexCajeFelix
+/Dockerfile             @AlexCajeFelix
+/compose.yaml           @AlexCajeFelix
+
+# Banco — migrations são caminho sem volta em produção
+/src/main/resources/db/ @AlexCajeFelix
