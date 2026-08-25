@@ -24,9 +24,9 @@ spring:
 
 app:
   jwt:
-    # TODO(#6): segredo com default embutido. Qualquer um que leia o repositorio consegue
-    # forjar um token de LIDERANCA. Precisa vir so de variavel de ambiente.
-    secret: ${JWT_SECRET:dev-secret-nao-use-em-producao-troque-me-agora}
+    # Sem default: a aplicacao nao sobe sem JWT_SECRET no ambiente. Para desenvolvimento,
+    # o valor vem do profile dev (application-dev.yml), nunca daqui.
+    secret: ${JWT_SECRET:}
     # TODO(#8): 8h sem renovacao — o app derruba o usuario no meio do uso quando expira.
     expiration: PT8H
 

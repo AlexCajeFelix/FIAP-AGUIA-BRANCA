@@ -1,0 +1,5 @@
+# Profile de desenvolvimento. O segredo abaixo e publico por definicao — esta versionado.
+# O JwtSecretGuard recusa o boot se ele aparecer com qualquer profile que nao seja dev.
+app:
+  jwt:
+    secret: dev-secret-nao-use-em-producao-troque-me-agora
