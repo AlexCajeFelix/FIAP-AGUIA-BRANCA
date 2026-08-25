@@ -18,6 +18,11 @@
 
 	<properties>
 		<java.version>21</java.version>
+		<!-- O Testcontainers gerenciado pelo Boot 3.3.5 (1.19.8) fixa a API Docker 1.32
+		     internamente, e o Docker Engine >= 29 recusa: "client version 1.32 is too old.
+		     Minimum supported API version is 1.40". Com 1.19.8 o teste nao falha — ele e
+		     PULADO pelo @EnabledIf, o que fazia o build passar verde sem ter rodado. -->
+		<testcontainers.version>1.21.4</testcontainers.version>
 	</properties>
 
 	<dependencies>
