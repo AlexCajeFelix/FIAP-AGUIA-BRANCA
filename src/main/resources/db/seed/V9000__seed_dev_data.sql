@@ -1,8 +1,11 @@
 -- Massa de desenvolvimento: um usuario por perfil e dados de exemplo para as telas.
 --
--- ATENCAO (#7): esta migration esta em db/migration, entao o Flyway a executa em TODO
--- ambiente — inclusive producao, criando contas com senha conhecida no banco real.
--- Corrigir separando por location ou movendo para test/resources.
+-- Vive em db/seed, fora do location de producao. So o profile dev inclui esta pasta, entao
+-- em prod estas linhas nao existem e a versao nao aparece no flyway_schema_history.
+--
+-- A versao e 9000, nao 2, de proposito: o Flyway funde os dois locations numa sequencia unica
+-- de versoes. Com o seed em V2, a proxima migration real de producao tambem seria V2 e os dois
+-- ambientes divergiriam no mesmo numero. Numero alto mantem as duas faixas separadas.
 --
 -- Senhas: operador123 / gestor123 / lideranca123 (BCrypt custo 10).
 
