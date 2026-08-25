@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: fiap-aguia-branca
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aguiabranca}
+    username: ${DB_USERNAME:aguiabranca}
+    password: ${DB_PASSWORD:aguiabranca}
+
+  jpa:
+    # O schema e dono do Flyway. validate falha o boot se a entidade divergir da migration,
+    # que e exatamente o alarme que se quer: divergencia descoberta no deploy, nao em runtime.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    # TODO(#6): segredo com default embutido. Qualquer um que leia o repositorio consegue
+    # forjar um token de LIDERANCA. Precisa vir so de variavel de ambiente.
+    secret: ${JWT_SECRET:dev-secret-nao-use-em-producao-troque-me-agora}
+    # TODO(#8): 8h sem renovacao — o app derruba o usuario no meio do uso quando expira.
+    expiration: PT8H
+
+logging:
+  level:
+    org.flywaydb: INFO
