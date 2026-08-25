@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -19,6 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @DataJpaTest
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+// Em banco nao-embarcado o ddl-auto default e "none": sem isto o Hibernate nao cria nada e o
+// teste morre com relation "projects" does not exist. O slice valida a expressao JPQL no
+// dialeto do Postgres, nao o schema — por isso gera o schema pelas entidades, sem Flyway.
+@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @EnabledIf("isDockerAvailable")
 class ProjectRepositoryTestcontainersTest {
 
