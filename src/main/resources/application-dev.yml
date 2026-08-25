@@ -1,5 +1,16 @@
 # Profile de desenvolvimento. O segredo abaixo e publico por definicao — esta versionado.
 # O JwtSecretGuard recusa o boot se ele aparecer com qualquer profile que nao seja dev.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+    # O seed e a versao 9000. Sem out-of-order, uma V3 nova de producao seria recusada em dev
+    # ("out of order") por ter numero menor que algo ja aplicado.
+    out-of-order: true
+    # Banco de dev que aplicou o seed quando ele ainda era a V2 tem no historico uma versao
+    # que nao existe mais em lugar nenhum. Sem isto, o Flyway trava com "applied migration not
+    # resolved locally" e o unico caminho seria recriar o banco.
+    ignore-migration-patterns: "*:missing"
+
 app:
   jwt:
     secret: dev-secret-nao-use-em-producao-troque-me-agora
