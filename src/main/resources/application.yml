@@ -26,6 +26,12 @@ spring:
     locations: classpath:db/migration
 
 app:
+  cors:
+    # Vazio por default: nenhuma origem cross-origin passa sem configuracao explicita.
+    # O cliente atual e o app Android, que nao e afetado por CORS — isto fica pronto e
+    # desligado, esperando um front web existir.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
   jwt:
     # Sem default: a aplicacao nao sobe sem JWT_SECRET no ambiente. Para desenvolvimento,
     # o valor vem do profile dev (application-dev.yml), nunca daqui.
