@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: fiap-aguia-branca
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aguiabranca}
+    username: ${DB_USERNAME:aguiabranca}
+    password: ${DB_PASSWORD:aguiabranca}
+
+  jpa:
+    # O schema e dono do Flyway. validate falha o boot se a entidade divergir da migration,
+    # que e exatamente o alarme que se quer: divergencia descoberta no deploy, nao em runtime.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    # Somente db/migration. O seed de desenvolvimento vive em db/seed e so entra pelo
+    # profile dev — assim producao nao ganha contas com senha conhecida por construcao,
+    # e nao por alguem lembrar de apagar a linha depois.
+    locations: classpath:db/migration
+
+app:
+  cors:
+    # Vazio por default: nenhuma origem cross-origin passa sem configuracao explicita.
+    # O cliente atual e o app Android, que nao e afetado por CORS — isto fica pronto e
+    # desligado, esperando um front web existir.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+  jwt:
+    # Sem default: a aplicacao nao sobe sem JWT_SECRET no ambiente. Para desenvolvimento,
+    # o valor vem do profile dev (application-dev.yml), nunca daqui.
+    secret: ${JWT_SECRET:}
+    # TODO(#8): 8h sem renovacao — o app derruba o usuario no meio do uso quando expira.
+    expiration: PT8H
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Explicito de proposito. O default do Actuator ja e este, mas escrever aqui
+        # transforma "expor /actuator/env para depurar" numa mudanca visivel no diff —
+        # /actuator/env entrega variaveis de ambiente, incluindo o JWT_SECRET da #6.
+        include: health,info
+  endpoint:
+    health:
+      # Detalhe (inclusive o status do Postgres) so para quem esta autenticado.
+      # A rota e publica para o healthcheck do Docker, mas o corpo publico e so {"status":"UP"}.
+      show-details: when-authorized
+
+logging:
+  level:
+    org.flywaydb: INFO

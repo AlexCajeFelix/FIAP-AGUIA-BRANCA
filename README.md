@@ -4,12 +4,74 @@ Backend do **Hub de Inovação e Gestão de Projetos Corporativos**: API que sub
 hoje consumidos pelo app Android via `ApiRepository` (npoint.io + fallback hardcoded) por
 persistência real.
 
-> **Status:** repositório em fundação. O código da aplicação ainda não foi commitado —
-> o backlog de implementação está nas [issues](../../issues) e no
+> **Status:** aplicação de pé. As quatro fatias (`auth`, `idea`, `project`, `strategy`) têm
+> controller, service, repository e DTOs; o schema é versionado por Flyway. O backlog de
+> endurecimento, operação e testes está nas [issues](../../issues) e no
 > [board](https://github.com/users/AlexCajeFelix/projects/4).
 
-**Comece pela issue [#1](../../issues/1) e depois a [#2](../../issues/2).** Elas destravam
-todo o resto do backlog — nada de M2 em diante deve começar antes delas.
+## Rodando local
+
+Precisa de **Docker** (o Postgres dos testes sobe por Testcontainers) e de um Postgres para a app:
+
+```bash
+docker run -d --name aguiabranca-db -p 5432:5432 \
+  -e POSTGRES_DB=aguiabranca -e POSTGRES_USER=aguiabranca -e POSTGRES_PASSWORD=aguiabranca \
+  postgres:16-alpine
+
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
+
+### O segredo do JWT
+
+A aplicação **não sobe** sem `JWT_SECRET`, e recusa segredo com menos de 32 bytes — HS256 assina
+com bloco de 256 bits, e chave menor enfraquece a assinatura. Gere o seu:
+
+```bash
+openssl rand -base64 48
+```
+
+O profile `dev` traz um segredo pronto para não travar quem está começando. Ele é **público**:
+está versionado em `application-dev.yml`, então qualquer pessoa que leia o repositório consegue
+forjar um token de `LIDERANCA`. Por isso a aplicação recusa o boot se esse valor aparecer com
+qualquer profile diferente de `dev`.
+
+Fora de dev, a variável vem do ambiente — `.env.example` lista o que preencher.
+
+O Flyway aplica `V1__initial_schema.sql` em qualquer ambiente. O seed de desenvolvimento vive em
+`db/seed/` e **só entra com o profile `dev`** — em produção essas linhas não existem. Usuários
+criados pelo seed, um por perfil:
+
+| E-mail | Senha | Perfil |
+|---|---|---|
+| `operador@aguiabranca.dev` | `operador123` | `OPERADOR` |
+| `gestor@aguiabranca.dev` | `gestor123` | `GESTOR` |
+| `lideranca@aguiabranca.dev` | `lideranca123` | `LIDERANCA` |
+
+```bash
+curl -s localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"gestor@aguiabranca.dev","password":"gestor123"}'
+```
+
+## Rotas
+
+| Método | Rota | Quem pode |
+|---|---|---|
+| `POST` | `/auth/login` | público |
+| `POST` | `/ideas` | qualquer autenticado |
+| `GET` | `/ideas?status=` | autenticado — `OPERADOR` só vê as próprias |
+| `GET` | `/ideas/{id}` | autenticado — ideia alheia responde 404 para `OPERADOR` |
+| `POST` | `/ideas/{id}/approval` | `GESTOR`, `LIDERANCA` |
+| `GET` | `/projects` | qualquer autenticado |
+| `GET` | `/projects/summary` | qualquer autenticado |
+| `GET` | `/projects/{id}` | qualquer autenticado |
+| `GET` | `/projects/{id}/metrics-history` | qualquer autenticado |
+| `POST` | `/projects/from-idea/{ideaId}` | `GESTOR`, `LIDERANCA` |
+| `PATCH` | `/projects/{id}/metrics` | `GESTOR`, `LIDERANCA` |
+| `GET` | `/strategies`, `/strategies/{id}` | qualquer autenticado |
+| `POST` `PUT` `DELETE` | `/strategies` | `GESTOR`, `LIDERANCA` |
+
+Erro sai em RFC 7807. O campo estável para o cliente decidir comportamento é o **`type`**, nunca
+o `title` — que é texto livre e muda.
 
 ---
 
