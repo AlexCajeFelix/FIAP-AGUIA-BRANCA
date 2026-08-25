@@ -30,6 +30,20 @@ app:
     # TODO(#8): 8h sem renovacao — o app derruba o usuario no meio do uso quando expira.
     expiration: PT8H
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Explicito de proposito. O default do Actuator ja e este, mas escrever aqui
+        # transforma "expor /actuator/env para depurar" numa mudanca visivel no diff —
+        # /actuator/env entrega variaveis de ambiente, incluindo o JWT_SECRET da #6.
+        include: health,info
+  endpoint:
+    health:
+      # Detalhe (inclusive o status do Postgres) so para quem esta autenticado.
+      # A rota e publica para o healthcheck do Docker, mas o corpo publico e so {"status":"UP"}.
+      show-details: when-authorized
+
 logging:
   level:
     org.flywaydb: INFO
