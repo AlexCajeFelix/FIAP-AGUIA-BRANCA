@@ -37,8 +37,9 @@ qualquer profile diferente de `dev`.
 
 Fora de dev, a variável vem do ambiente — `.env.example` lista o que preencher.
 
-O Flyway aplica `V1__initial_schema.sql` e o seed de desenvolvimento no boot. Usuários criados
-pelo seed, um por perfil:
+O Flyway aplica `V1__initial_schema.sql` em qualquer ambiente. O seed de desenvolvimento vive em
+`db/seed/` e **só entra com o profile `dev`** — em produção essas linhas não existem. Usuários
+criados pelo seed, um por perfil:
 
 | E-mail | Senha | Perfil |
 |---|---|---|

@@ -20,6 +20,9 @@ spring:
 
   flyway:
     enabled: true
+    # Somente db/migration. O seed de desenvolvimento vive em db/seed e so entra pelo
+    # profile dev — assim producao nao ganha contas com senha conhecida por construcao,
+    # e nao por alguem lembrar de apagar a linha depois.
     locations: classpath:db/migration
 
 app:
