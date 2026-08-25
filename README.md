@@ -18,11 +18,28 @@ docker run -d --name aguiabranca-db -p 5432:5432 \
   -e POSTGRES_DB=aguiabranca -e POSTGRES_USER=aguiabranca -e POSTGRES_PASSWORD=aguiabranca \
   postgres:16-alpine
 
-./mvnw spring-boot:run
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
-O Flyway aplica `V1__initial_schema.sql` e o seed de desenvolvimento no boot. Usuários criados
-pelo seed, um por perfil:
+### O segredo do JWT
+
+A aplicação **não sobe** sem `JWT_SECRET`, e recusa segredo com menos de 32 bytes — HS256 assina
+com bloco de 256 bits, e chave menor enfraquece a assinatura. Gere o seu:
+
+```bash
+openssl rand -base64 48
+```
+
+O profile `dev` traz um segredo pronto para não travar quem está começando. Ele é **público**:
+está versionado em `application-dev.yml`, então qualquer pessoa que leia o repositório consegue
+forjar um token de `LIDERANCA`. Por isso a aplicação recusa o boot se esse valor aparecer com
+qualquer profile diferente de `dev`.
+
+Fora de dev, a variável vem do ambiente — `.env.example` lista o que preencher.
+
+O Flyway aplica `V1__initial_schema.sql` em qualquer ambiente. O seed de desenvolvimento vive em
+`db/seed/` e **só entra com o profile `dev`** — em produção essas linhas não existem. Usuários
+criados pelo seed, um por perfil:
 
 | E-mail | Senha | Perfil |
 |---|---|---|

@@ -5,6 +5,8 @@ import br.com.fiap.aguiabranca.shared.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
+import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,18 +19,24 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({ JwtProperties.class, CorsProperties.class })
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
     private final ObjectMapper objectMapper;
+    private final CorsProperties corsProperties;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter, ObjectMapper objectMapper) {
+    public SecurityConfig(JwtAuthenticationFilter jwtFilter, ObjectMapper objectMapper,
+            CorsProperties corsProperties) {
         this.jwtFilter = jwtFilter;
         this.objectMapper = objectMapper;
+        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -36,11 +44,11 @@ public class SecurityConfig {
         return http
                 // API stateless com token: nao ha sessao nem formulario para o CSRF proteger.
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
-                        // TODO(#11): a rota esta liberada mas o starter-actuator nao esta no
-                        // pom — qualquer healthcheck bate em 404.
+                        // Publica para o healthcheck do compose (#12) conseguir bater sem token.
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
@@ -70,6 +78,32 @@ public class SecurityConfig {
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(),
                 GlobalExceptionHandler.asMap(status, type, title, detail, instance));
+    }
+
+    /**
+     * Um unico ponto de configuracao, no lugar de @CrossOrigin espalhado pelos controllers:
+     * anotacao por controller e o que faz uma rota nova nascer com regra diferente das outras.
+     *
+     * Sem origem configurada devolve uma fonte vazia — nenhuma requisicao cross-origin recebe
+     * Access-Control-Allow-Origin, entao o navegador barra.
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        if (corsProperties.isEnabled()) {
+            CorsConfiguration configuration = new CorsConfiguration();
+            // Lista explicita, nunca "*": combinado com allowCredentials(true) o proprio Spring
+            // recusa o curinga em runtime, e o header sai ecoando a origem que pediu.
+            configuration.setAllowedOrigins(corsProperties.allowedOrigins());
+            configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+            configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id"));
+            configuration.setAllowCredentials(true);
+            configuration.setMaxAge(Duration.ofHours(1));
+            source.registerCorsConfiguration("/**", configuration);
+        }
+
+        return source;
     }
 
     @Bean
