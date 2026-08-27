@@ -54,5 +54,9 @@ management:
       show-details: when-authorized
 
 logging:
+  # Injeta o correlation ID no campo de nivel do padrao default do Boot, em vez de reescrever
+  # o padrao inteiro — assim cor, timestamp e thread continuam vindo do Spring Boot.
+  pattern:
+    level: "%5p [%X{requestId:-sem-request-id}]"
   level:
     org.flywaydb: INFO

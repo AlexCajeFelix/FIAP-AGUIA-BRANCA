@@ -2,6 +2,7 @@ package br.com.fiap.aguiabranca.domain.auth;
 
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
 import br.com.fiap.aguiabranca.shared.GlobalExceptionHandler;
+import br.com.fiap.aguiabranca.shared.RequestId;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -62,14 +63,16 @@ public class SecurityConfig {
     private void unauthenticated(HttpServletRequest request, HttpServletResponse response,
             org.springframework.security.core.AuthenticationException ex) throws java.io.IOException {
         write(response, HttpStatus.UNAUTHORIZED, ErrorTypes.UNAUTHENTICATED, "Nao autenticado",
-                "Envie um token valido no header Authorization.", request.getRequestURI());
+                "Envie um token valido no header Authorization.",
+                GlobalExceptionHandler.instanceOf(request).toString());
     }
 
     /** Autenticado, mas sem o perfil exigido: 403. O app apenas informa, nao desloga. */
     private void forbidden(HttpServletRequest request, HttpServletResponse response,
             org.springframework.security.access.AccessDeniedException ex) throws java.io.IOException {
         write(response, HttpStatus.FORBIDDEN, ErrorTypes.FORBIDDEN, "Sem permissao",
-                "Seu perfil nao tem permissao para esta operacao.", request.getRequestURI());
+                "Seu perfil nao tem permissao para esta operacao.",
+                GlobalExceptionHandler.instanceOf(request).toString());
     }
 
     private void write(HttpServletResponse response, HttpStatus status, String type, String title,
@@ -97,7 +100,10 @@ public class SecurityConfig {
             // recusa o curinga em runtime, e o header sai ecoando a origem que pediu.
             configuration.setAllowedOrigins(corsProperties.allowedOrigins());
             configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-            configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id"));
+            configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", RequestId.HEADER));
+            // Exposto, e nao so permitido: header de resposta fora da lista branca do CORS o
+            // navegador esconde do JavaScript. O ID chegaria e o front nao conseguiria le-lo.
+            configuration.setExposedHeaders(List.of(RequestId.HEADER));
             configuration.setAllowCredentials(true);
             configuration.setMaxAge(Duration.ofHours(1));
             source.registerCorsConfiguration("/**", configuration);

@@ -50,6 +50,18 @@ class CorsEnabledIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("X-Request-Id e exposto para o JavaScript conseguir ler")
+    void shouldExposeRequestIdHeader() throws Exception {
+        // Header de resposta nao exposto o navegador esconde do JS: o ID chegaria na resposta
+        // e o front nao conseguiria mostra-lo em tela para o usuario reportar.
+        mockMvc.perform(options("/ideas")
+                .header("Origin", ALLOWED)
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Expose-Headers", containsString("X-Request-Id")));
+    }
+
+    @Test
     @DisplayName("Com credenciais habilitadas, Allow-Origin nunca sai como curinga")
     void shouldNeverEchoWildcardWithCredentials() throws Exception {
         // "*" com allowCredentials e recusado pelo proprio Spring em runtime; o header tem

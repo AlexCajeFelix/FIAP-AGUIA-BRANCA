@@ -2,6 +2,8 @@ package br.com.fiap.aguiabranca.shared;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -29,13 +31,19 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
+        log.debug("404 em {}: {}", request.getRequestURI(), ex.getMessage());
         return problem(HttpStatus.NOT_FOUND, "Recurso nao encontrado", ex.getType(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(DomainRuleException.class)
     public ProblemDetail handleDomainRule(DomainRuleException ex, HttpServletRequest request) {
+        // WARN e nao ERROR: regra de negocio recusada e funcionamento esperado, nao falha da app.
+        // Sai correlacionado pelo MDC, entao da para reconstruir a requisicao inteira pelo ID.
+        log.warn("422 em {} ({}): {}", request.getRequestURI(), ex.getType(), ex.getMessage());
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Regra de negocio violada", ex.getType(),
                 ex.getMessage(), request);
     }
@@ -64,6 +72,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             fields.put(error.getField(), error.getDefaultMessage());
         }
         detail.setProperty("errors", fields);
+        if (request instanceof org.springframework.web.context.request.ServletWebRequest servletRequest) {
+            detail.setInstance(instanceOf(servletRequest.getRequest()));
+        }
 
         return ResponseEntity.unprocessableEntity().body(detail);
     }
@@ -74,8 +85,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         detail.setType(ErrorTypes.of(type));
         detail.setTitle(title);
         detail.setDetail(message);
-        detail.setInstance(URI.create(request.getRequestURI()));
+        detail.setInstance(instanceOf(request));
         return detail;
+    }
+
+    /**
+     * O instance aponta para a ocorrencia, nao para o recurso: com o correlation ID ali, um
+     * print de tela do erro basta para achar as linhas de log daquela requisicao exata.
+     */
+    public static URI instanceOf(HttpServletRequest request) {
+        String requestId = RequestId.current();
+        return requestId == null
+                ? URI.create(request.getRequestURI())
+                : URI.create("urn:request-id:" + requestId);
     }
 
     /** Usado tambem pelos handlers da cadeia de filtros, que respondem fora do MVC. */

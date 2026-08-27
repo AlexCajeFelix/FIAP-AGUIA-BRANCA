@@ -73,6 +73,23 @@ curl -s localhost:8080/auth/login -H 'Content-Type: application/json' \
 Erro sai em RFC 7807. O campo estável para o cliente decidir comportamento é o **`type`**, nunca
 o `title` — que é texto livre e muda.
 
+### Correlation ID
+
+Toda resposta volta com o header **`X-Request-Id`**, e toda linha de log da requisição sai com o
+mesmo valor entre colchetes. Se o cliente mandar o header, ele é reaproveitado; se não mandar, a
+API gera um UUID.
+
+```
+2026-08-27T10:12:03.914-03:00  WARN [app-android-7f3a] 1 --- [nio-8080-exec-2] G.ExceptionHandler : 422 em /projects/12/metrics ...
+```
+
+Em resposta de erro o mesmo ID aparece no `instance` do ProblemDetail, como
+`urn:request-id:<id>` — então um print de tela do erro basta para achar as linhas de log daquela
+requisição exata, sem caçar por horário.
+
+Valor recebido do cliente é limpo antes de entrar no log: acima de 64 caracteres, ou sobrando
+vazio depois da limpeza, a API descarta e gera o próprio.
+
 ---
 
 ## Índice
