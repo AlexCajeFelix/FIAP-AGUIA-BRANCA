@@ -1,0 +1,8 @@
+# Issue em branco desativada: sem template ninguem preenche area, contexto e criterio
+# de aceite -- e issue sem criterio verificavel nao sai do Backlog de qualquer jeito.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Board do projeto
+    url: https://github.com/users/AlexCajeFelix/projects/4
+    about: Antes de abrir, confira se o trabalho ja esta rastreado num card.
