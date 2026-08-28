@@ -14,6 +14,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class AuthFlowIntegrationTest extends IntegrationTestSupport {
 
+    private String withoutInstance(String problemDetailJson) throws Exception {
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(problemDetailJson);
+        node.remove("instance");
+        return node.toString();
+    }
+
     @Test
     @DisplayName("Login valido devolve access token com o perfil do usuario")
     void shouldReturnTokenOnValidLogin() throws Exception {
@@ -53,7 +59,10 @@ class AuthFlowIntegrationTest extends IntegrationTestSupport {
                 .andReturn().getResponse().getContentAsString();
 
         // Se as duas respostas diferissem, daria para enumerar contas validas so pelo corpo.
-        org.junit.jupiter.api.Assertions.assertEquals(wrongPassword, unknownAccount);
+        // O instance fica de fora da comparacao: ele carrega o correlation ID da requisicao (#13),
+        // que e diferente a cada chamada por definicao e nao diz nada sobre a conta.
+        org.junit.jupiter.api.Assertions.assertEquals(
+                withoutInstance(wrongPassword), withoutInstance(unknownAccount));
     }
 
     @Test
