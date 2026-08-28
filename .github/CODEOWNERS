@@ -1,10 +1,30 @@
-# Dono padrão de tudo que não casar com uma regra mais específica abaixo.
+# A ULTIMA regra que casa com o arquivo e a que vale -- por isso o curinga vem
+# primeiro e as areas depois. Inverter a ordem faz o curinga engolir todas elas.
+#
+# CODEOWNERS so surte efeito para quem tem permissao de ESCRITA no repositorio:
+# colaborador sem write e ignorado sem aviso nenhum. Valide pela aba
+# Settings > Branches (#5), nunca pelo conteudo deste arquivo.
+
+# Dono padrao de tudo que nao casar com uma regra mais especifica abaixo.
 *                       @AlexCajeFelix
 
-# Infraestrutura e pipeline
-/.github/               @AlexCajeFelix
-/Dockerfile             @AlexCajeFelix
-/compose.yaml           @AlexCajeFelix
+# Backend -- as quatro fatias, de controller a repository
+/src/main/java/         @AlexCajeFelix
+/src/test/java/         @AlexCajeFelix
 
-# Banco — migrations são caminho sem volta em produção
+# Banco -- migration e caminho sem volta em producao; revisao aqui nao e opcional
 /src/main/resources/db/ @AlexCajeFelix
+
+# Infra -- pipeline, build e wrapper
+/.github/               @AlexCajeFelix
+/pom.xml                @AlexCajeFelix
+/mvnw                   @AlexCajeFelix
+/mvnw.cmd               @AlexCajeFelix
+/.mvn/                  @AlexCajeFelix
+
+# Android nao tem regra aqui de proposito: o app vive fora deste repositorio.
+# As issues area:android sao rastreadas neste board, o codigo nao.
+#
+# /Dockerfile e /compose.yaml sairam da lista: ainda nao existem (#12), e caminho
+# inexistente o GitHub ignora em silencio -- a regra aparenta proteger o arquivo
+# e nao protege nada. Voltam no mesmo PR que criar os arquivos.
