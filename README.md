@@ -56,6 +56,7 @@ curl -s localhost:8080/auth/login -H 'Content-Type: application/json' \
 
 | Método | Rota | Quem pode |
 |---|---|---|
+| `GET` | `/v3/api-docs` | público (contrato OpenAPI) |
 | `POST` | `/auth/login` | público |
 | `POST` | `/ideas` | qualquer autenticado |
 | `GET` | `/ideas?status=` | autenticado — `OPERADOR` só vê as próprias |

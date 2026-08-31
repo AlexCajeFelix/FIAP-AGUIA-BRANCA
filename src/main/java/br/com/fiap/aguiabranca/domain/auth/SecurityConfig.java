@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         // Publica para o healthcheck do compose (#12) conseguir bater sem token.
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
