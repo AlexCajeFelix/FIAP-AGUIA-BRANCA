@@ -68,7 +68,7 @@ public abstract class IntegrationTestSupport {
     @BeforeEach
     void resetDatabase() {
         jdbcTemplate.execute("""
-                TRUNCATE TABLE project_metrics_history, projects, ideas, strategies, users
+                TRUNCATE TABLE refresh_tokens, project_metrics_history, projects, ideas, strategies, users
                 RESTART IDENTITY CASCADE
                 """);
     }

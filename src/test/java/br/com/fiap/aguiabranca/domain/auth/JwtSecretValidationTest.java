@@ -20,7 +20,7 @@ class JwtSecretValidationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of())
             .withUserConfiguration(JwtTestConfiguration.class)
-            .withPropertyValues("app.jwt.expiration=PT8H");
+            .withPropertyValues("app.jwt.expiration=PT30M", "app.jwt.refresh-expiration=P7D");
 
     @Test
     @DisplayName("Sobe com segredo proprio de 32 bytes ou mais")
