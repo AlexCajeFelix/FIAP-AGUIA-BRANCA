@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: aguiabranca-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aguiabranca}
+      POSTGRES_USER: ${POSTGRES_USER:-aguiabranca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aguiabranca}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aguiabranca} -d ${POSTGRES_DB:-aguiabranca}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aguiabranca-app
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-aguiabranca}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aguiabranca}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aguiabranca}
+      JWT_SECRET: ${JWT_SECRET:-segredo-de-dev-com-mais-de-32-bytes-para-hs256-autenticacao}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
