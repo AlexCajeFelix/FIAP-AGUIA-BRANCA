@@ -4,11 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/**
- * TODO(#8): expiration de 8h sem refresh — o app expulsa o usuario no meio do uso.
- */
 @ConfigurationProperties(prefix = "app.jwt")
-public record JwtProperties(String secret, Duration expiration) {
+public record JwtProperties(String secret, Duration expiration, Duration refreshExpiration) {
 
     /** HS256 assina com bloco de 256 bits: chave menor enfraquece a assinatura. */
     static final int MIN_SECRET_BYTES = 32;

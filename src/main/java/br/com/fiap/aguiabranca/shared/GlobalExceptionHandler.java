@@ -1,5 +1,6 @@
 package br.com.fiap.aguiabranca.shared;
 
+import br.com.fiap.aguiabranca.domain.auth.InvalidRefreshTokenException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.Logger;
@@ -54,6 +55,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         // as duas entrega ao atacante uma lista de contas validas.
         return problem(HttpStatus.UNAUTHORIZED, "Credenciais invalidas", ErrorTypes.INVALID_CREDENTIALS,
                 "E-mail ou senha incorretos.", request);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ProblemDetail handleInvalidRefresh(InvalidRefreshTokenException ex, HttpServletRequest request) {
+        return problem(HttpStatus.UNAUTHORIZED, "Refresh token invalido", ErrorTypes.INVALID_REFRESH,
+                ex.getMessage(), request);
     }
 
     @Override

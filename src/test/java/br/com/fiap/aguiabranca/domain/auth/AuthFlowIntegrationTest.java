@@ -32,8 +32,9 @@ class AuthFlowIntegrationTest extends IntegrationTestSupport {
                         """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.role").value("GESTOR"))
-                .andExpect(jsonPath("$.expiresIn").isNumber());
+                .andExpect(jsonPath("$.expiresIn").value(1800));
     }
 
     @Test
