@@ -39,6 +39,15 @@ app:
     expiration: PT30M
     refresh-expiration: P7D
 
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    ip:
+      capacity: ${RATE_LIMIT_IP_CAPACITY:10}
+      duration-minutes: ${RATE_LIMIT_IP_DURATION_MINUTES:1}
+    email:
+      capacity: ${RATE_LIMIT_EMAIL_CAPACITY:5}
+      duration-minutes: ${RATE_LIMIT_EMAIL_DURATION_MINUTES:15}
+
 management:
   endpoints:
     web:

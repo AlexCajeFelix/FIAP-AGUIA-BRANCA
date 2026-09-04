@@ -1,13 +1,14 @@
 package br.com.fiap.aguiabranca.shared;
 
+import br.com.fiap.aguiabranca.domain.auth.RateLimitExceededException;
 import br.com.fiap.aguiabranca.domain.auth.InvalidRefreshTokenException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -24,9 +25,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /**
  * Traduz excecao em RFC 7807.
  *
- * AccessDeniedException NAO e tratada aqui de proposito: ela precisa subir ate o
- * ExceptionTranslationFilter do Spring Security, que e quem sabe diferenciar "nao sei quem
- * voce e" (401) de "sei e voce nao pode" (403). Capturar aqui devolveria 403 tambem para
+ * AccessDeniedException NAO e tratada aqui de proposito: ela precisa subir ate
+ * o
+ * ExceptionTranslationFilter do Spring Security, que e quem sabe diferenciar
+ * "nao sei quem
+ * voce e" (401) de "sei e voce nao pode" (403). Capturar aqui devolveria 403
+ * tambem para
  * requisicao anonima, e o app trataria sessao valida como expirada.
  */
 @RestControllerAdvice
@@ -42,16 +46,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DomainRuleException.class)
     public ProblemDetail handleDomainRule(DomainRuleException ex, HttpServletRequest request) {
-        // WARN e nao ERROR: regra de negocio recusada e funcionamento esperado, nao falha da app.
-        // Sai correlacionado pelo MDC, entao da para reconstruir a requisicao inteira pelo ID.
+        // WARN e nao ERROR: regra de negocio recusada e funcionamento esperado, nao
+        // falha da app.
+        // Sai correlacionado pelo MDC, entao da para reconstruir a requisicao inteira
+        // pelo ID.
         log.warn("422 em {} ({}): {}", request.getRequestURI(), ex.getType(), ex.getMessage());
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Regra de negocio violada", ex.getType(),
                 ex.getMessage(), request);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleRateLimitExceeded(RateLimitExceededException ex,
+            HttpServletRequest request) {
+        log.warn("429 em {}: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail detail = problem(HttpStatus.TOO_MANY_REQUESTS, "Limite de tentativas excedido",
+                ErrorTypes.RATE_LIMIT_EXCEEDED, ex.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(detail);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ProblemDetail handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
-        // Mensagem deliberadamente igual para e-mail inexistente e senha errada: distinguir
+        // Mensagem deliberadamente igual para e-mail inexistente e senha errada:
+        // distinguir
         // as duas entrega ao atacante uma lista de contas validas.
         return problem(HttpStatus.UNAUTHORIZED, "Credenciais invalidas", ErrorTypes.INVALID_CREDENTIALS,
                 "E-mail ou senha incorretos.", request);
@@ -97,8 +115,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * O instance aponta para a ocorrencia, nao para o recurso: com o correlation ID ali, um
-     * print de tela do erro basta para achar as linhas de log daquela requisicao exata.
+     * O instance aponta para a ocorrencia, nao para o recurso: com o correlation ID
+     * ali, um
+     * print de tela do erro basta para achar as linhas de log daquela requisicao
+     * exata.
      */
     public static URI instanceOf(HttpServletRequest request) {
         String requestId = RequestId.current();
@@ -107,7 +127,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 : URI.create("urn:request-id:" + requestId);
     }
 
-    /** Usado tambem pelos handlers da cadeia de filtros, que respondem fora do MVC. */
+    /**
+     * Usado tambem pelos handlers da cadeia de filtros, que respondem fora do MVC.
+     */
     public static Map<String, Object> asMap(HttpStatus status, String type, String title, String detail,
             String instance) {
         Map<String, Object> body = new LinkedHashMap<>();

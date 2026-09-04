@@ -5,7 +5,8 @@ import java.net.URI;
 /**
  * URIs de "type" do RFC 7807.
  *
- * O cliente decide comportamento pelo type, nunca pelo title — title e texto livre e muda
+ * O cliente decide comportamento pelo type, nunca pelo title — title e texto
+ * livre e muda
  * sem aviso. Por isso estes valores sao contrato: mudar um quebra o app.
  */
 public final class ErrorTypes {
@@ -25,6 +26,7 @@ public final class ErrorTypes {
     public static final String INVALID_REFRESH = BASE + "refresh-invalido";
     public static final String UNAUTHENTICATED = BASE + "nao-autenticado";
     public static final String FORBIDDEN = BASE + "sem-permissao";
+    public static final String RATE_LIMIT_EXCEEDED = BASE + "rate-limit-excedido";
 
     public static URI of(String type) {
         return URI.create(type);

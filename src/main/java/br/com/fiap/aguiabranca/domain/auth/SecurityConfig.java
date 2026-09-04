@@ -24,9 +24,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.web.filter.ForwardedHeaderFilter;
+
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties({ JwtProperties.class, CorsProperties.class })
+@EnableConfigurationProperties({ JwtProperties.class, CorsProperties.class, RateLimitProperties.class })
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
@@ -141,5 +143,14 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(10);
+    }
+
+    /**
+     * Trata headers padrao de proxy/load-balancer (X-Forwarded-For) para resolver
+     * o IP real do cliente (request.getRemoteAddr()) com seguranca.
+     */
+    @Bean
+    public ForwardedHeaderFilter forwardedHeaderFilter() {
+        return new ForwardedHeaderFilter();
     }
 }

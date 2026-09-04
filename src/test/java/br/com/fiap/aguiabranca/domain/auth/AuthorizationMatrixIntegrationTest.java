@@ -63,6 +63,14 @@ class AuthorizationMatrixIntegrationTest extends IntegrationTestSupport {
                     Role.OPERADOR, Access.ALLOWED,
                     Role.GESTOR, Access.ALLOWED,
                     Role.LIDERANCA, Access.ALLOWED)),
+            new RouteMatrixEntry(HttpMethod.POST, "/auth/refresh", true, Map.of(
+                    Role.OPERADOR, Access.ALLOWED,
+                    Role.GESTOR, Access.ALLOWED,
+                    Role.LIDERANCA, Access.ALLOWED)),
+            new RouteMatrixEntry(HttpMethod.POST, "/auth/logout", true, Map.of(
+                    Role.OPERADOR, Access.ALLOWED,
+                    Role.GESTOR, Access.ALLOWED,
+                    Role.LIDERANCA, Access.ALLOWED)),
             new RouteMatrixEntry(HttpMethod.GET, "/actuator/health", true, Map.of(
                     Role.OPERADOR, Access.ALLOWED,
                     Role.GESTOR, Access.ALLOWED,
@@ -265,6 +273,18 @@ class AuthorizationMatrixIntegrationTest extends IntegrationTestSupport {
 
         // POST /auth/login
         mockMvc.perform(request(HttpMethod.POST, "/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotEqualTo(HttpStatus.UNAUTHORIZED.value()));
+
+        // POST /auth/refresh e POST /auth/logout — publicas como o login (permitAll)
+        mockMvc.perform(request(HttpMethod.POST, "/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotEqualTo(HttpStatus.UNAUTHORIZED.value()));
+        mockMvc.perform(request(HttpMethod.POST, "/auth/logout")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus())

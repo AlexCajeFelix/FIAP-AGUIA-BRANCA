@@ -15,9 +15,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Prova que o seed nao alcanca producao.
  *
- * Roda o Flyway pela API Java em um banco novo por caso, em vez de subir o contexto do Spring:
- * o que se afirma aqui e sobre a configuracao do Flyway, e dois contextos com locations
- * diferentes brigando pelo mesmo banco dariam um teste que depende da ordem de execucao.
+ * Roda o Flyway pela API Java em um banco novo por caso, em vez de subir o
+ * contexto do Spring:
+ * o que se afirma aqui e sobre a configuracao do Flyway, e dois contextos com
+ * locations
+ * diferentes brigando pelo mesmo banco dariam um teste que depende da ordem de
+ * execucao.
  */
 class SeedMigrationIsolationTest {
 
@@ -69,7 +72,8 @@ class SeedMigrationIsolationTest {
         migrate(production, PRODUCTION_LOCATIONS);
         migrate(development, DEVELOPMENT_LOCATIONS);
 
-        // Divergencia de schema entre ambientes e o que faz "funciona em dev" virar erro no deploy.
+        // Divergencia de schema entre ambientes e o que faz "funciona em dev" virar
+        // erro no deploy.
         assertThat(tableNames(development)).isEqualTo(tableNames(production));
     }
 
@@ -82,9 +86,13 @@ class SeedMigrationIsolationTest {
                 .migrate();
     }
 
-    /** CREATE DATABASE nao roda dentro de transacao — dai o Statement direto no autocommit. */
+    /**
+     * CREATE DATABASE nao roda dentro de transacao — dai o Statement direto no
+     * autocommit.
+     */
     private static String freshDatabase(String name) throws SQLException {
         var container = IntegrationTestSupport.POSTGRES;
+        org.junit.jupiter.api.Assumptions.assumeTrue(container != null, "Postgres container nao disponivel");
         try (Connection connection = DriverManager.getConnection(container.getJdbcUrl(),
                 container.getUsername(), container.getPassword());
                 Statement statement = connection.createStatement()) {
