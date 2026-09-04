@@ -102,7 +102,7 @@ public abstract class IntegrationTestSupport {
         }
         if (IS_DOCKER_AVAILABLE && POSTGRES != null && POSTGRES.isRunning()) {
             jdbcTemplate.execute("""
-                    TRUNCATE TABLE project_metrics_history, projects, ideas, strategies, users
+                    TRUNCATE TABLE project_metrics_history, projects, ideas, strategies, refresh_tokens, users
                     RESTART IDENTITY CASCADE
                     """);
         } else {
@@ -110,6 +110,7 @@ public abstract class IntegrationTestSupport {
             jdbcTemplate.execute("DELETE FROM projects");
             jdbcTemplate.execute("DELETE FROM ideas");
             jdbcTemplate.execute("DELETE FROM strategies");
+            jdbcTemplate.execute("DELETE FROM refresh_tokens");
             jdbcTemplate.execute("DELETE FROM users");
         }
     }
