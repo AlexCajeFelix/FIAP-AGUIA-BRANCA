@@ -32,6 +32,14 @@ jobs:
       - name: Build e testes
         run: ./mvnw -B verify
 
+      - name: Publica contrato OpenAPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: target/openapi.json
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Publica relatorio de testes
         if: failure()
         uses: actions/upload-artifact@v4

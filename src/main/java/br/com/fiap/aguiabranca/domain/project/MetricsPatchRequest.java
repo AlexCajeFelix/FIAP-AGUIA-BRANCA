@@ -1,5 +1,6 @@
 package br.com.fiap.aguiabranca.domain.project;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 
 /**
@@ -8,6 +9,7 @@ import java.math.BigDecimal;
  */
 public record MetricsPatchRequest(Integer progress, BigDecimal spent) {
 
+    @JsonIgnore
     public boolean isEmpty() {
         return progress == null && spent == null;
     }

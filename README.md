@@ -62,6 +62,7 @@ comprometida) e responde `type` `https://aguiabranca.fiap.br/errors/refresh-inva
 
 | Método | Rota | Quem pode |
 |---|---|---|
+| `GET` | `/v3/api-docs` | público (contrato OpenAPI) |
 | `POST` | `/auth/login` | público |
 | `POST` | `/auth/refresh` | público (body com refresh token) |
 | `POST` | `/auth/logout` | público (body com refresh token) |
