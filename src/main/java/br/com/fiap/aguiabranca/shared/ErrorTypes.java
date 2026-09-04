@@ -23,6 +23,7 @@ public final class ErrorTypes {
     public static final String PROJECT_NO_METRIC = BASE + "nenhuma-metrica-informada";
     public static final String STRATEGY_NOT_FOUND = BASE + "estrategia-nao-encontrada";
     public static final String INVALID_CREDENTIALS = BASE + "credenciais-invalidas";
+    public static final String INVALID_REFRESH = BASE + "refresh-invalido";
     public static final String UNAUTHENTICATED = BASE + "nao-autenticado";
     public static final String FORBIDDEN = BASE + "sem-permissao";
     public static final String RATE_LIMIT_EXCEEDED = BASE + "rate-limit-excedido";

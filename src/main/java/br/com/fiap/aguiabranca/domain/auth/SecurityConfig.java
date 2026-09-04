@@ -50,9 +50,23 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/login", "/auth/refresh", "/auth/logout").permitAll()
                         // Publica para o healthcheck do compose (#12) conseguir bater sem token.
                         .requestMatchers("/actuator/health").permitAll()
+                        // Restrições RBAC definidas aqui (nível de URL) em vez de apenas @PreAuthorize,
+                        // para que o Spring Security retorne 403 ANTES que @Valid dispare 422.
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/ideas/*/approval")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/projects/from-idea/*")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
+                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/projects/*/metrics")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/strategies")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/strategies/*")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/strategies/*")
+                        .hasAnyRole("GESTOR", "LIDERANCA")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(this::unauthenticated)

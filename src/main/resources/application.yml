@@ -36,8 +36,8 @@ app:
     # Sem default: a aplicacao nao sobe sem JWT_SECRET no ambiente. Para desenvolvimento,
     # o valor vem do profile dev (application-dev.yml), nunca daqui.
     secret: ${JWT_SECRET:}
-    # TODO(#8): 8h sem renovacao — o app derruba o usuario no meio do uso quando expira.
-    expiration: PT8H
+    expiration: PT30M
+    refresh-expiration: P7D
 
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}

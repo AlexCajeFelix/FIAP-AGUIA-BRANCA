@@ -52,11 +52,19 @@ curl -s localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"gestor@aguiabranca.dev","password":"gestor123"}'
 ```
 
+O login devolve `accessToken` (30 min) e `refreshToken` (7 dias, opaco, revogável). Quando o
+access expirar, `POST /auth/refresh` com o refresh atual troca o par. Cada refresh invalida o
+token usado; reusar um já rotacionado revoga a família inteira daquele login (sessão
+comprometida) e responde `type` `https://aguiabranca.fiap.br/errors/refresh-invalido`.
+`POST /auth/logout` invalida o refresh corrente.
+
 ## Rotas
 
 | Método | Rota | Quem pode |
 |---|---|---|
 | `POST` | `/auth/login` | público |
+| `POST` | `/auth/refresh` | público (body com refresh token) |
+| `POST` | `/auth/logout` | público (body com refresh token) |
 | `POST` | `/ideas` | qualquer autenticado |
 | `GET` | `/ideas?status=` | autenticado — `OPERADOR` só vê as próprias |
 | `GET` | `/ideas/{id}` | autenticado — ideia alheia responde 404 para `OPERADOR` |
@@ -116,7 +124,7 @@ vazio depois da limpeza, a API descarta e gera o próprio.
 | Runtime | Java 21 |
 | Framework | Spring Boot 3.3.5 |
 | Banco | PostgreSQL + Flyway |
-| Auth | JWT HS256 (jjwt 0.12) |
+| Auth | JWT HS256 (jjwt 0.12) + refresh opaco rotacionado |
 | Erros | RFC 7807 (`ProblemDetail`) |
 | Testes | JUnit 5 + Testcontainers |
 | App cliente | Android (Kotlin) |
