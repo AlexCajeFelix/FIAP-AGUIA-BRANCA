@@ -50,6 +50,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/auth/login", "/auth/refresh", "/auth/logout").permitAll()
                         // Publica para o healthcheck do compose (#12) conseguir bater sem token.
                         .requestMatchers("/actuator/health").permitAll()
