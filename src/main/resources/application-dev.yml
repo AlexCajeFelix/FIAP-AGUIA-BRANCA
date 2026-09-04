@@ -1,5 +1,8 @@
 # Profile de desenvolvimento. O segredo abaixo e publico por definicao — esta versionado.
 # O JwtSecretGuard recusa o boot se ele aparecer com qualquer profile que nao seja dev.
+server:
+  port: ${SERVER_PORT:8081}
+
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
@@ -14,3 +17,4 @@ spring:
 app:
   jwt:
     secret: dev-secret-nao-use-em-producao-troque-me-agora
+
