@@ -251,6 +251,30 @@ conforme fecha cada item — dá visibilidade sem ninguém precisar perguntar "c
 Abrir PR vermelho gasta o tempo de quem revisa. (Enquanto a issue #1 não fechar, esse comando
 ainda não existe.)
 
+O `verify` também roda o **gate de cobertura**. Ele reprova o build abaixo do mínimo acordado:
+
+| Métrica | Mínimo | Onde muda |
+|---|---:|---|
+| Linha | 85% | `jacoco.min.line` no `pom.xml` |
+| Ramo | 55% | `jacoco.min.branch` no `pom.xml` |
+
+Se o build morrer assim, é o gate falando — não é flake:
+
+```
+[WARNING] Rule violated for bundle fiap-aguia-branca:
+          lines covered ratio is 0.79, but expected minimum is 0.85
+```
+
+O relatório fica em `target/site/jacoco/index.html`; abra e procure as linhas vermelhas do que
+você mexeu. Na CI ele sai como artefato `cobertura-jacoco`, e o percentual aparece no resumo do
+run sem precisar baixar nada.
+
+Os dois números foram fixados um pouco abaixo do medido, para pegar regressão sem obrigar cada
+PR a subir a barra. Subiu a cobertura de verdade? Suba o mínimo junto, no mesmo PR — é uma linha.
+
+Fora da contagem ficam a classe `main`, `*Config`, `*Properties` e os DTOs: nenhum tem ramo de
+decisão, e incluir só infla o percentual sem dizer nada sobre risco.
+
 ### 5. Abra o PR
 
 ```bash
