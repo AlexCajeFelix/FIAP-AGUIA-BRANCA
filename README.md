@@ -105,7 +105,8 @@ Erros seguem RFC 7807 (`ProblemDetail`). O campo estavel para o cliente decidir 
 
 ## Board E Fluxo
 
-A `main` e protegida: todo codigo entra por PR, com historico linear e check `build` verde.
+A `main` e protegida: todo codigo entra por PR, com historico linear e check `build` verde. As
+regras completas estao em [Regras da main](#regras-da-main).
 
 ```bash
 git checkout main
@@ -130,4 +131,62 @@ Board:
 
 ```text
 https://github.com/users/AlexCajeFelix/projects/4
+```
+
+## Regras da main
+
+A `main` e protegida, e a regra vale para admin tambem, entao nao adianta ser o dono do repo.
+
+| Regra | Efeito pratico |
+|---|---|
+| Push direto bloqueado | `git push origin main` e rejeitado com `GH006` |
+| PR obrigatorio | Todo codigo entra por PR |
+| CI verde obrigatoria | O check `build` precisa passar; o merge trava enquanto estiver vermelho |
+| Branch atualizada | PR atras da `main` precisa de rebase/update antes do merge |
+| 1 aprovacao | Ninguem merga o proprio PR sozinho, nem o dono do repo |
+| Historico linear | Merge commit rejeitado; use `--squash` |
+| Conversas resolvidas | Comentario pendente trava o merge |
+| Force push bloqueado | Nao da para reescrever o historico |
+| Delecao bloqueada | A `main` nao some por acidente |
+
+Se voce tentar `git push origin main` e vir isso, esta tudo certo:
+
+```text
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: - Changes must be made through a pull request.
+```
+
+Commitou na `main` local por engano? Leve o trabalho para uma branch:
+
+```bash
+git branch minha-branch      # salva o ponto atual
+git reset --hard origin/main # limpa a main local
+git checkout minha-branch
+```
+
+### Precisa de alguem para revisar
+
+Com `enforce_admins` ligado e 1 aprovacao exigida, ninguem merga sozinho, inclusive quem e admin
+do repositorio. Na pratica, todo PR precisa de outra pessoa do grupo clicando em Approve.
+
+Isso e deliberado, nao um efeito colateral. As duas regras que faltavam foram ligadas junto porque
+so fazem sentido em par: CI verde sem revisao aprova codigo que compila e nao presta; revisao sem
+CI aprova codigo que nem builda.
+
+`dismiss_stale_reviews` tambem esta ligado: se voce empurrar um commit novo depois de aprovado, a
+aprovacao cai e precisa ser refeita. Evita que uma mudanca de ultima hora entre sem ninguem ver.
+
+Travou porque esta sozinho e precisa mergear? A saida nao e desligar a protecao, e pedir o review
+no grupo. Se for emergencia real, um admin desliga `enforce_admins` pelas configuracoes, merga e
+religa na mesma sessao.
+
+### Como saber o nome do check exigido
+
+O check obrigatorio e o job `build` do workflow de CI. Renomear esse job quebra a protecao em
+silencio: o GitHub passa a esperar um check que nunca mais chega, e todo PR fica travado. Se
+precisar renomear, atualize a protecao junto:
+
+```bash
+gh api repos/{owner}/{repo}/branches/main/protection/required_status_checks \
+  -X PATCH -f 'contexts[]=novo-nome'
 ```
