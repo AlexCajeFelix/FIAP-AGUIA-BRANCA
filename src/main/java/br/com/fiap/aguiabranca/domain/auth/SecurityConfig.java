@@ -51,7 +51,11 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login", "/auth/refresh", "/auth/logout").permitAll()
-                        .requestMatchers("/swagger-ui.html", "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        // Os tres degraus precisam estar liberados juntos: /swagger-ui.html responde 302
+                        // e manda o navegador para /swagger-ui/index.html, que por sua vez carrega os
+                        // estaticos sob /swagger-ui/**. Liberar so a entrada deixa a pagina em 401.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**").permitAll()
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         // Publica para o healthcheck do compose (#12) conseguir bater sem token.
                         .requestMatchers("/actuator/health").permitAll()
                         // Restrições RBAC definidas aqui (nível de URL) em vez de apenas @PreAuthorize,
