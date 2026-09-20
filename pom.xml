@@ -24,6 +24,9 @@
 		     Minimum supported API version is 1.40". Com 1.19.8 o teste nao falha — ele e
 		     PULADO pelo @EnabledIf, o que fazia o build passar verde sem ter rodado. -->
 		<testcontainers.version>1.21.4</testcontainers.version>
+		<jacoco.version>0.8.12</jacoco.version>
+		<jacoco.min.line>0.85</jacoco.min.line>
+		<jacoco.min.branch>0.55</jacoco.min.branch>
 		<build-helper.version>3.6.0</build-helper.version>
 	</properties>
 
@@ -218,6 +221,71 @@
 					<outputFileName>openapi.json</outputFileName>
 					<outputDir>${project.build.directory}</outputDir>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<configuration>
+					<!-- Fora da conta: a classe main, configuracao e DTO. Nenhuma tem ramo de
+					     decisao — incluir so infla o percentual sem dizer nada sobre risco. -->
+					<excludes>
+						<exclude>br/com/fiap/aguiabranca/FiapAguiaBrancaApplication.class</exclude>
+						<exclude>**/*Config.class</exclude>
+						<exclude>**/*Properties.class</exclude>
+						<exclude>**/*Request.class</exclude>
+						<exclude>**/*Response.class</exclude>
+						<exclude>**/*Dto.class</exclude>
+						<exclude>**/ProjectStatusCount.class</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<!-- initialize: o agente precisa estar no argLine antes do Surefire subir a JVM
+					     de teste. Amarrar em fase posterior gera relatorio zerado e gate que passa sempre. -->
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<!-- Minimo fixado um pouco abaixo do medido em 20/09/2026 (linha 88.12%, ramo 61.03%):
+					     o gate existe para pegar regressao, nao para obrigar o proximo PR a subir a barra.
+					     Ramo e menor que linha de proposito — e o numero honesto hoje, e meta inflada so
+					     ensina o time a escrever teste que passa sem testar. -->
+					<execution>
+						<id>check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.min.line}</minimum>
+										</limit>
+										<limit>
+											<counter>BRANCH</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.min.branch}</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

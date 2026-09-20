@@ -40,6 +40,61 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      # O resumo aparece na propria pagina do run: ver a cobertura nao exige baixar
+      # e abrir o HTML. Roda sempre (inclusive quando o gate reprova), porque e
+      # justamente no build vermelho que o numero interessa.
+      - name: Resumo de cobertura
+        if: always()
+        run: |
+          REL=target/site/jacoco/jacoco.xml
+          if [ ! -f "$REL" ]; then
+            echo "Relatorio Jacoco nao gerado." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - "$REL" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+          import sys, xml.etree.ElementTree as ET
+
+          raiz = ET.parse(sys.argv[1]).getroot()
+          minimos = {"LINE": 85.0, "BRANCH": 55.0}
+
+          def taxa(no, tipo):
+              for c in no.findall("counter"):
+                  if c.get("type") == tipo:
+                      perdido, coberto = int(c.get("missed")), int(c.get("covered"))
+                      total = perdido + coberto
+                      return (100.0 * coberto / total) if total else 0.0
+              return None
+
+          print("## Cobertura de testes\n")
+          print("| Metrica | Cobertura | Minimo | |")
+          print("|---|---:|---:|:--:|")
+          for tipo in ("LINE", "BRANCH", "INSTRUCTION", "METHOD"):
+              valor = taxa(raiz, tipo)
+              if valor is None:
+                  continue
+              minimo = minimos.get(tipo)
+              alvo = f"{minimo:.0f}%" if minimo else "-"
+              sinal = "" if minimo is None else ("OK" if valor >= minimo else "ABAIXO")
+              print(f"| {tipo.capitalize()} | {valor:.2f}% | {alvo} | {sinal} |")
+
+          print("\n<details><summary>Por pacote</summary>\n")
+          print("| Pacote | Linha | Ramo |")
+          print("|---|---:|---:|")
+          for pacote in sorted(raiz.findall("package"), key=lambda p: p.get("name")):
+              nome = pacote.get("name").split("/")[-1]
+              print(f"| {nome} | {taxa(pacote, 'LINE'):.2f}% | {(taxa(pacote, 'BRANCH') or 0):.2f}% |")
+          print("\n</details>")
+          PYEOF
+
+      - name: Publica relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-jacoco
+          path: target/site/jacoco/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Publica relatorio de testes
         if: failure()
         uses: actions/upload-artifact@v4
