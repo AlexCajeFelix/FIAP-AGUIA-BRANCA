@@ -3,6 +3,7 @@ package br.com.fiap.aguiabranca.domain.project;
 import br.com.fiap.aguiabranca.domain.idea.Idea;
 import br.com.fiap.aguiabranca.shared.DomainRuleException;
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -11,11 +12,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document("projects")
-public class Project {
+@Document(collection = "projects")
+public class Project implements SequentialDocument {
 
     @Id
     private Long id;
@@ -36,9 +36,11 @@ public class Project {
     @NotNull
     private BigDecimal spent = BigDecimal.ZERO;
 
-    @Indexed(unique = true, sparse = true)
+    // O indice unico parcial sobre ideaId e o que impede a mesma ideia virar dois projetos:
+    // a checagem no service perde para duas requisicoes simultaneas, o indice nao.
     private Long ideaId;
 
+    @NotNull
     private Instant createdAt = Instant.now();
 
     public Project() {
@@ -48,7 +50,6 @@ public class Project {
         this.name = name;
         updateProgress(progress);
         this.budget = budget;
-        this.status = ProjectStatus.PLANNING;
         this.spent = BigDecimal.ZERO;
         this.createdAt = Instant.now();
     }
@@ -66,10 +67,15 @@ public class Project {
                     "Progresso deve ser entre 0 e 100.");
         }
         this.progress = newProgress;
+        if (this.status == ProjectStatus.CANCELLED) {
+            return;
+        }
         if (newProgress == 100) {
             this.status = ProjectStatus.COMPLETED;
-        } else if (newProgress > 0 && this.status == ProjectStatus.PLANNING) {
+        } else if (newProgress > 0) {
             this.status = ProjectStatus.IN_PROGRESS;
+        } else {
+            this.status = ProjectStatus.PLANNING;
         }
     }
 
@@ -81,14 +87,17 @@ public class Project {
         this.spent = newSpent;
     }
 
+    @Override
     public Long getId() {
         return id;
     }
 
+    @Override
     public void assignId(Long id) {
-        if (this.id == null) {
-            this.id = id;
+        if (this.id != null) {
+            throw new IllegalStateException("Projeto já tem id " + this.id);
         }
+        this.id = id;
     }
 
     public String getName() {
@@ -109,10 +118,6 @@ public class Project {
 
     public BigDecimal getSpent() {
         return spent;
-    }
-
-    public Idea getIdea() {
-        return ideaId == null ? null : new IdeaRef(ideaId);
     }
 
     public Long getIdeaId() {
@@ -136,11 +141,5 @@ public class Project {
     @Override
     public int hashCode() {
         return Objects.hash(id);
-    }
-
-    private static final class IdeaRef extends Idea {
-        private IdeaRef(Long id) {
-            assignId(id);
-        }
     }
 }

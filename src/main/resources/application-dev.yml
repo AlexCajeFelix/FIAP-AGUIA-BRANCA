@@ -1,10 +1,9 @@
+# Profile de desenvolvimento. O segredo abaixo e publico por definicao — esta versionado.
+# O JwtSecretGuard recusa o boot se ele aparecer com qualquer profile que nao seja dev.
+#
+# A massa de desenvolvimento vem do DevSeedRunner, que so existe neste profile.
 server:
   port: ${SERVER_PORT:8081}
-
-spring:
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/aguiabranca}
 
 app:
   jwt:

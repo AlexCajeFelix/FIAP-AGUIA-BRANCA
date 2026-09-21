@@ -30,4 +30,22 @@ class ProjectTest {
         assertThrows(IllegalArgumentException.class, () -> project.updateProgress(-1));
         assertThrows(IllegalArgumentException.class, () -> project.updateProgress(101));
     }
+
+    @Test
+    void shouldDeriveStatusFromInitialProgress() {
+        assertEquals(ProjectStatus.PLANNING, new Project("Novo", 0, BigDecimal.TEN).getStatus());
+        assertEquals(ProjectStatus.IN_PROGRESS, new Project("Iniciado", 10, BigDecimal.TEN).getStatus());
+        assertEquals(ProjectStatus.COMPLETED, new Project("Concluido", 100, BigDecimal.TEN).getStatus());
+    }
+
+    @Test
+    void shouldKeepStatusConsistentWhenCorrectingProgress() {
+        Project project = new Project("Projeto", 100, BigDecimal.TEN);
+        project.updateProgress(70);
+        assertEquals(ProjectStatus.IN_PROGRESS, project.getStatus());
+        project.updateProgress(0);
+        assertEquals(ProjectStatus.PLANNING, project.getStatus());
+        project.updateProgress(100);
+        assertEquals(ProjectStatus.COMPLETED, project.getStatus());
+    }
 }

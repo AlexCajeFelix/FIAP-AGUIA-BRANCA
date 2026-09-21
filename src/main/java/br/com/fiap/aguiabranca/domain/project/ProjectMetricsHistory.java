@@ -1,6 +1,7 @@
 package br.com.fiap.aguiabranca.domain.project;
 
-import br.com.fiap.aguiabranca.domain.user.User;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
+import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.springframework.data.annotation.Id;
@@ -10,10 +11,11 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * Snapshot de auditoria financeira: quem mudou qual metrica, de quanto para quanto e quando.
  *
  * Gravado na mesma transacao da alteracao. Fora dela, um erro posterior deixaria historico
- * de uma mudanca que nunca aconteceu.
+ * de uma mudanca que nunca aconteceu — no Mongo isso exige replica set, e e o unico ponto do
+ * sistema que depende disso.
  */
-@Document("project_metrics_history")
-public class ProjectMetricsHistory {
+@Document(collection = "project_metrics_history")
+public class ProjectMetricsHistory implements SequentialDocument {
 
     public enum Metric {
         PROGRESS,
@@ -23,45 +25,47 @@ public class ProjectMetricsHistory {
     @Id
     private Long id;
 
+    @NotNull
     private Long projectId;
 
+    @NotNull
     private Metric metric;
 
     private BigDecimal oldValue;
 
+    @NotNull
     private BigDecimal newValue;
 
+    @NotNull
     private Long changedById;
 
+    @NotNull
     private Instant changedAt = Instant.now();
 
     protected ProjectMetricsHistory() {
     }
 
-    public ProjectMetricsHistory(Project project, Metric metric, BigDecimal oldValue, BigDecimal newValue,
-            User changedBy) {
-        this.projectId = project.getId();
+    public ProjectMetricsHistory(Long projectId, Metric metric, BigDecimal oldValue, BigDecimal newValue,
+            Long changedById) {
+        this.projectId = projectId;
         this.metric = metric;
         this.oldValue = oldValue;
         this.newValue = newValue;
-        this.changedById = changedBy.getId();
+        this.changedById = changedById;
         this.changedAt = Instant.now();
     }
 
+    @Override
     public Long getId() {
         return id;
     }
 
+    @Override
     public void assignId(Long id) {
-        if (this.id == null) {
-            this.id = id;
+        if (this.id != null) {
+            throw new IllegalStateException("Snapshot já tem id " + this.id);
         }
-    }
-
-    public Project getProject() {
-        Project project = new Project();
-        project.assignId(projectId);
-        return project;
+        this.id = id;
     }
 
     public Long getProjectId() {
@@ -78,12 +82,6 @@ public class ProjectMetricsHistory {
 
     public BigDecimal getNewValue() {
         return newValue;
-    }
-
-    public User getChangedBy() {
-        User user = new User();
-        user.assignId(changedById);
-        return user;
     }
 
     public Long getChangedById() {

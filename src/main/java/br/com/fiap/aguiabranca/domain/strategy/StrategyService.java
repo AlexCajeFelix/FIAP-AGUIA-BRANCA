@@ -4,7 +4,6 @@ import br.com.fiap.aguiabranca.shared.ErrorTypes;
 import br.com.fiap.aguiabranca.shared.ResourceNotFoundException;
 import java.util.List;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class StrategyService {
@@ -15,32 +14,29 @@ public class StrategyService {
         this.strategies = strategies;
     }
 
-    @Transactional(readOnly = true)
     public List<Strategy> list() {
-        return strategies.findAllByOrderByIdDesc();
+        return strategies.findAllByDeletedAtIsNullOrderByIdDesc();
     }
 
-    @Transactional(readOnly = true)
     public Strategy findById(Long id) {
-        return strategies.findById(id).orElseThrow(() -> notFound(id));
+        return strategies.findByIdAndDeletedAtIsNull(id).orElseThrow(() -> notFound(id));
     }
 
-    @Transactional
     public Strategy create(StrategyRequest request) {
         return strategies.save(new Strategy(request.title(), request.description(), request.horizon()));
     }
 
-    @Transactional
     public Strategy update(Long id, StrategyRequest request) {
-        Strategy strategy = strategies.findById(id).orElseThrow(() -> notFound(id));
+        Strategy strategy = findById(id);
         strategy.update(request.title(), request.description(), request.horizon());
-        return strategy;
+        return strategies.save(strategy);
     }
 
-    /** Soft delete: marca deleted_at. O @SQLRestriction tira a linha das leituras seguintes. */
-    @Transactional
+    /** Soft delete: marca deletedAt e regrava. O documento continua na colecao, fora das leituras. */
     public void delete(Long id) {
-        strategies.findById(id).orElseThrow(() -> notFound(id)).softDelete();
+        Strategy strategy = findById(id);
+        strategy.softDelete();
+        strategies.save(strategy);
     }
 
     private ResourceNotFoundException notFound(Long id) {

@@ -2,12 +2,11 @@ package br.com.fiap.aguiabranca.domain.idea;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
 
-public interface IdeaRepository {
-
-    Idea save(Idea idea);
-
-    Optional<Idea> findById(Long id);
+@Repository
+public interface IdeaRepository extends MongoRepository<Idea, Long>, IdeaReviewStore {
 
     List<Idea> findAllByStatusOrderByIdDesc(Idea.Status status);
 
@@ -18,6 +17,4 @@ public interface IdeaRepository {
     List<Idea> findAllByOrderByIdDesc();
 
     Optional<Idea> findByIdAndOwnerId(Long id, Long ownerId);
-
-    void deleteAll();
 }

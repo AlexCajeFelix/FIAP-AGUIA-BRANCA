@@ -55,6 +55,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ex.getMessage(), request);
     }
 
+    @ExceptionHandler(br.com.fiap.aguiabranca.domain.ai.SuggestionUnavailableException.class)
+    public ProblemDetail handleSuggestionUnavailable(
+            br.com.fiap.aguiabranca.domain.ai.SuggestionUnavailableException ex,
+            HttpServletRequest request) {
+        // 502 e nao 500: quem falhou foi o servico de fora, e o cliente pode tentar de novo.
+        log.warn("502 em {}: {}", request.getRequestURI(), ex.getMessage());
+        return problem(HttpStatus.BAD_GATEWAY, "Assistente indisponivel", ErrorTypes.SUGGESTION_UNAVAILABLE,
+                ex.getMessage(), request);
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<ProblemDetail> handleRateLimitExceeded(RateLimitExceededException ex,
             HttpServletRequest request) {

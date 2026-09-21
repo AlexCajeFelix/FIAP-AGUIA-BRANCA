@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M24,78 L41,28 L54,18 L72,18 C79,18 84,23 84,30 C84,31 83,33 82,34 C87,34 91,36 94,40 C89,36 84,36 79,38 C70,42 63,52 63,63 C63,69 66,74 72,78 L24,78 Z"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:strokeColor="@color/white" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M31,71 L47,46 L68,57 L79,71"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeColor="@color/brand_gold" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M31,71 L79,71"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeColor="@color/brand_gold" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M47,46 L74,31"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeColor="@color/brand_gold" />
+    <path
+        android:fillColor="@color/brand_gold"
+        android:pathData="M31,71m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:fillColor="@color/brand_gold"
+        android:pathData="M47,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    <path
+        android:fillColor="@color/brand_gold_light"
+        android:pathData="M68,57m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path
+        android:fillColor="@color/brand_gold_light"
+        android:pathData="M79,71m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    <path
+        android:fillColor="@color/brand_gold"
+        android:pathData="M75,27 C78,27 81,28 83,30 C81,31 79,32 76,32 C72,32 69,31 67,29 C69,28 72,27 75,27 Z" />
+</vector>

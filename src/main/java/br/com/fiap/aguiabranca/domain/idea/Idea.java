@@ -1,8 +1,8 @@
 package br.com.fiap.aguiabranca.domain.idea;
 
-import br.com.fiap.aguiabranca.domain.user.User;
 import br.com.fiap.aguiabranca.shared.DomainRuleException;
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
@@ -10,8 +10,8 @@ import java.util.Objects;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document("ideas")
-public class Idea {
+@Document(collection = "ideas")
+public class Idea implements SequentialDocument {
 
     public enum Status {
         DRAFT,
@@ -32,8 +32,11 @@ public class Idea {
     @NotNull
     private Status status = Status.DRAFT;
 
+    // Sem join no Mongo: guarda-se a referencia por id e quem precisa do usuario inteiro
+    // carrega pelo UserRepository. A API ja expunha apenas o id do dono.
     private Long ownerId;
 
+    @NotNull
     private Instant createdAt = Instant.now();
 
     private Long reviewedById;
@@ -50,18 +53,18 @@ public class Idea {
         this.createdAt = Instant.now();
     }
 
-    public Idea(String title, String description, User owner) {
+    public Idea(String title, String description, Long ownerId) {
         this(title, description);
-        this.ownerId = owner.getId();
+        this.ownerId = ownerId;
     }
 
     public void review(Status newStatus) {
         review(newStatus, null);
     }
 
-    public void review(Status newStatus, User reviewer) {
+    public void review(Status newStatus, Long reviewerId) {
         if (newStatus == null || newStatus == Status.DRAFT) {
-            throw new IllegalArgumentException("Status de revisão inválido");
+            throw new DomainRuleException(ErrorTypes.VALIDATION, "Status de revisão inválido.");
         }
         // Revisar de novo o que ja foi decidido apagaria a decisao anterior sem deixar rastro.
         if (isReviewed()) {
@@ -69,7 +72,7 @@ public class Idea {
                     "Ideia já revisada com status " + this.status + ".");
         }
         this.status = newStatus;
-        this.reviewedById = reviewer == null ? null : reviewer.getId();
+        this.reviewedById = reviewerId;
         this.reviewedAt = Instant.now();
     }
 
@@ -83,17 +86,20 @@ public class Idea {
 
     /** O OPERADOR so enxerga o que e dele; os demais perfis enxergam tudo. */
     public boolean isOwnedBy(Long userId) {
-        return Objects.equals(ownerId, userId);
+        return ownerId != null && Objects.equals(ownerId, userId);
     }
 
+    @Override
     public Long getId() {
         return id;
     }
 
+    @Override
     public void assignId(Long id) {
-        if (this.id == null) {
-            this.id = id;
+        if (this.id != null) {
+            throw new IllegalStateException("Ideia já tem id " + this.id);
         }
+        this.id = id;
     }
 
     public String getTitle() {
@@ -108,20 +114,12 @@ public class Idea {
         return status;
     }
 
-    public User getOwner() {
-        return ownerId == null ? null : new UserRef(ownerId);
-    }
-
     public Long getOwnerId() {
         return ownerId;
     }
 
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public User getReviewedBy() {
-        return reviewedById == null ? null : new UserRef(reviewedById);
     }
 
     public Long getReviewedById() {
@@ -145,11 +143,5 @@ public class Idea {
     @Override
     public int hashCode() {
         return Objects.hash(id);
-    }
-
-    private static final class UserRef extends User {
-        private UserRef(Long id) {
-            assignId(id);
-        }
     }
 }

@@ -7,8 +7,16 @@ import java.util.UUID;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Login e rotacao de refresh token.
+ *
+ * Nao ha @Transactional aqui de proposito. O que a transacao protegia era a leitura seguida de
+ * revogacao do token — e isso agora acontece numa unica operacao atomica no servidor
+ * ({@link RefreshTokenRevocation#claimIfActive}). Abrir transacao do Mongo em volta traria de
+ * volta o problema que ela resolvia, so com outro nome: duas requisicoes concorrentes sobre o
+ * mesmo documento dariam WriteConflict em vez de cair no caminho de reuso.
+ */
 @Service
 public class AuthService {
 
@@ -27,7 +35,6 @@ public class AuthService {
         this.jwtProperties = jwtProperties;
     }
 
-    @Transactional
     public TokenResponse login(LoginRequest request) {
         User user = users.findByEmail(request.email())
                 .orElseThrow(() -> new BadCredentialsException("credenciais invalidas"));
@@ -42,48 +49,46 @@ public class AuthService {
     /**
      * Troca um refresh valido por um par novo e invalida o usado.
      * Reuso de um token ja rotacionado revoga a familia inteira — sinal de roubo.
-     *
-     * InvalidRefreshTokenException nao reverte a transacao: a revogacao da familia
-     * precisa persistir, senao o token recem-rotacionado continua valido.
      */
-    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public TokenResponse refresh(RefreshRequest request) {
-        RefreshToken current = lookup(request.refreshToken());
+        String hash = RefreshTokens.hash(request.refreshToken());
         Instant now = Instant.now();
 
-        if (current.isRevoked()) {
-            refreshTokens.findByFamilyId(current.getFamilyId())
-                    .forEach(token -> token.revoke(now));
-            throw new InvalidRefreshTokenException();
-        }
+        RefreshToken current = refreshTokens.claimIfActive(hash, now)
+                .orElseThrow(() -> reuseOrUnknown(hash, now));
 
+        // Expirado ja saiu revogado do claim: nao da para trocar, mas tambem nao e roubo.
         if (current.isExpired(now)) {
-            current.revoke(now);
             throw new InvalidRefreshTokenException();
         }
 
-        current.revoke(now);
         User user = users.findById(current.getUserId())
                 .orElseThrow(InvalidRefreshTokenException::new);
-        UUID familyId = current.getFamilyId();
-        return issuePair(user, familyId);
+        return issuePair(user, current.getFamilyId());
     }
 
-    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
     public void logout(RefreshRequest request) {
-        RefreshToken current = lookup(request.refreshToken());
-        current.revoke(Instant.now());
+        String hash = RefreshTokens.hash(request.refreshToken());
+        if (refreshTokens.claimIfActive(hash, Instant.now()).isEmpty()
+                && refreshTokens.findByTokenHash(hash).isEmpty()) {
+            throw new InvalidRefreshTokenException();
+        }
     }
 
-    private RefreshToken lookup(String raw) {
-        return refreshTokens.findByTokenHashForUpdate(RefreshTokens.hash(raw))
-                .orElseThrow(InvalidRefreshTokenException::new);
+    /**
+     * Claim vazio tem duas causas: o token nunca existiu, ou ja estava revogado. So a segunda
+     * e reuso, e so ela derruba a familia.
+     */
+    private InvalidRefreshTokenException reuseOrUnknown(String hash, Instant now) {
+        refreshTokens.findByTokenHash(hash)
+                .ifPresent(reused -> refreshTokens.revokeFamily(reused.getFamilyId(), now));
+        return new InvalidRefreshTokenException();
     }
 
     private TokenResponse issuePair(User user, UUID familyId) {
         String rawRefresh = RefreshTokens.generateRaw();
         Instant expiresAt = Instant.now().plus(jwtProperties.refreshExpiration());
-        refreshTokens.save(new RefreshToken(RefreshTokens.hash(rawRefresh), user, familyId, expiresAt));
+        refreshTokens.save(new RefreshToken(RefreshTokens.hash(rawRefresh), user.getId(), familyId, expiresAt));
         return new TokenResponse(jwtService.generate(user), rawRefresh, jwtService.expiresInSeconds(),
                 user.getRole());
     }

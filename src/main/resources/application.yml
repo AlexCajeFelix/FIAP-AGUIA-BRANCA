@@ -4,16 +4,41 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/aguiabranca}
+      # O servidor precisa ser membro de um replica set: transacao no Mongo nao existe em
+      # mongod avulso, e o @Transactional de ProjectService.updateMetrics depende dela. O
+      # compose sobe um replica set de um no so por isso.
+      #
+      # directConnection=true fala com o no informado sem descobrir topologia. Sem isso o
+      # driver leria a lista de membros do replica set (localhost:27017, o endereco visto de
+      # dentro do container) e tentaria conectar nela a partir de fora.
+      uri: ${MONGODB_URI:mongodb://localhost:27017/aguiabranca?directConnection=true}
+      # Indice criado por anotacao some no meio da entidade e ninguem revisa. Aqui eles sao
+      # explicitos, num lugar so: MongoSchemaInitializer.
+      auto-index-creation: false
 
 app:
   cors:
+    # Vazio por default: nenhuma origem cross-origin passa sem configuracao explicita.
+    # O cliente atual e o app Android, que nao e afetado por CORS — isto fica pronto e
+    # desligado, esperando um front web existir.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
   jwt:
+    # Sem default: a aplicacao nao sobe sem JWT_SECRET no ambiente. Para desenvolvimento,
+    # o valor vem do profile dev (application-dev.yml), nunca daqui.
     secret: ${JWT_SECRET:}
     expiration: PT30M
     refresh-expiration: P7D
+
+  gemini:
+    # Sem a variavel no ambiente, a fatia de IA inteira fica fora do contexto e
+    # POST /ideas/suggest responde 404. Nenhum teste depende deste segredo.
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
+    timeout: ${GEMINI_TIMEOUT:PT20S}
+    limits:
+      requests-per-minute: ${GEMINI_REQUESTS_PER_MINUTE:6}
+      max-concurrent: ${GEMINI_MAX_CONCURRENT:3}
 
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
@@ -28,13 +53,20 @@ management:
   endpoints:
     web:
       exposure:
+        # Explicito de proposito. O default do Actuator ja e este, mas escrever aqui
+        # transforma "expor /actuator/env para depurar" numa mudanca visivel no diff —
+        # /actuator/env entrega variaveis de ambiente, incluindo o JWT_SECRET da #6.
         include: health,info
   endpoint:
     health:
+      # Detalhe (inclusive o status do Postgres) so para quem esta autenticado.
+      # A rota e publica para o healthcheck do Docker, mas o corpo publico e so {"status":"UP"}.
       show-details: when-authorized
 
 logging:
+  # Injeta o correlation ID no campo de nivel do padrao default do Boot, em vez de reescrever
+  # o padrao inteiro — assim cor, timestamp e thread continuam vindo do Spring Boot.
   pattern:
     level: "%5p [%X{requestId:-sem-request-id}]"
   level:
-    org.springframework.data.mongodb.core.index: INFO
+    org.flywaydb: INFO

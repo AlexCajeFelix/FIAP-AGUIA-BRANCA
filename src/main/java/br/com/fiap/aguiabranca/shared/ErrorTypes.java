@@ -27,6 +27,7 @@ public final class ErrorTypes {
     public static final String UNAUTHENTICATED = BASE + "nao-autenticado";
     public static final String FORBIDDEN = BASE + "sem-permissao";
     public static final String RATE_LIMIT_EXCEEDED = BASE + "rate-limit-excedido";
+    public static final String SUGGESTION_UNAVAILABLE = BASE + "sugestao-indisponivel";
 
     public static URI of(String type) {
         return URI.create(type);

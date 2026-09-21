@@ -1,9 +1,13 @@
+# Profile usado so para gerar o contrato OpenAPI no build (spring-boot:start + springdoc).
+#
+# Nao ha banco aqui: o driver do Mongo conecta preguicosamente, entao a aplicacao sobe e serve
+# /v3/api-docs sem nunca tocar o servidor. O MongoSchemaInitializer, que tocaria, e o unico
+# componente excluido deste profile.
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/openapi-sem-banco
+
 app:
   jwt:
     secret: ${JWT_SECRET:segredo-de-teste-com-mais-de-32-bytes-para-hs256}
-
-spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration

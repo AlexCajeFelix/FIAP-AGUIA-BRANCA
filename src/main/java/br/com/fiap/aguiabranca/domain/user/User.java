@@ -1,29 +1,35 @@
 package br.com.fiap.aguiabranca.domain.user;
 
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Objects;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document("users")
-public class User {
+@Document(collection = "users")
+public class User implements SequentialDocument {
 
     @Id
     private Long id;
 
+    @NotBlank
     private String name;
 
-    @Indexed(unique = true)
+    @NotBlank
     private String email;
 
+    @NotBlank
     private String passwordHash;
 
+    @NotNull
     private Role role;
 
+    @NotNull
     private Instant createdAt = Instant.now();
 
-    public User() {
+    protected User() {
     }
 
     public User(String name, String email, String passwordHash, Role role) {
@@ -34,14 +40,17 @@ public class User {
         this.createdAt = Instant.now();
     }
 
+    @Override
     public Long getId() {
         return id;
     }
 
+    @Override
     public void assignId(Long id) {
-        if (this.id == null) {
-            this.id = id;
+        if (this.id != null) {
+            throw new IllegalStateException("Usuário já tem id " + this.id);
         }
+        this.id = id;
     }
 
     public String getName() {

@@ -85,10 +85,10 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
     void shouldRejectExpiredRefresh() throws Exception {
         Tokens tokens = loginTokens("expirado@teste.dev", Role.LIDERANCA);
 
-        String hash = RefreshTokens.hash(tokens.refreshToken());
-        RefreshToken refreshToken = refreshTokens.findByTokenHashForUpdate(hash).orElseThrow();
-        refreshToken.expireAt(java.time.Instant.now().minusSeconds(1));
-        refreshTokens.save(refreshToken);
+        mongoTemplate.updateMulti(new org.springframework.data.mongodb.core.query.Query(),
+                org.springframework.data.mongodb.core.query.Update.update("expiresAt",
+                        java.time.Instant.now().minusSeconds(1)),
+                "refresh_tokens");
 
         mockMvc.perform(post("/auth/refresh")
                 .contentType("application/json")
