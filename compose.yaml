@@ -1,20 +1,25 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mongo:7
     container_name: aguiabranca-db
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-aguiabranca}
-      POSTGRES_USER: ${POSTGRES_USER:-aguiabranca}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aguiabranca}
+    # Replica set de um no so: nao e por disponibilidade, e porque transacao no Mongo exige
+    # replica set. Sem isto o PATCH /projects/{id}/metrics falha ao abrir a transacao.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongo_data:/data/db
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aguiabranca} -d ${POSTGRES_DB:-aguiabranca}" ]
+      # O proprio healthcheck inicia o replica set na primeira subida e vira ping depois.
+      # Um container de init separado so para rodar rs.initiate seria mais uma peca para
+      # esquecer de subir.
+      test: >
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) {
+        rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }"
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
 
   app:
@@ -26,14 +31,14 @@ services:
       - "${APP_PORT:-8080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-aguiabranca}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-aguiabranca}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aguiabranca}
+      SPRING_DATA_MONGODB_URI: mongodb://db:27017/${MONGO_DB:-aguiabranca}?directConnection=true
+      SERVER_PORT: 8080
       JWT_SECRET: ${JWT_SECRET:-segredo-de-dev-com-mais-de-32-bytes-para-hs256-autenticacao}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mongo_data:

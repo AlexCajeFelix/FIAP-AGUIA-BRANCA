@@ -1,38 +1,32 @@
 package br.com.fiap.aguiabranca.domain.user;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Objects;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "users")
-public class User {
+@Document(collection = "users")
+public class User implements SequentialDocument {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @NotBlank
     private String name;
 
-    @Column(nullable = false, unique = true)
+    @NotBlank
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    @NotBlank
     private String passwordHash;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @NotNull
     private Role role;
 
-    @Column(name = "created_at", nullable = false)
+    @NotNull
     private Instant createdAt = Instant.now();
 
     protected User() {
@@ -46,8 +40,17 @@ public class User {
         this.createdAt = Instant.now();
     }
 
+    @Override
     public Long getId() {
         return id;
+    }
+
+    @Override
+    public void assignId(Long id) {
+        if (this.id != null) {
+            throw new IllegalStateException("Usuário já tem id " + this.id);
+        }
+        this.id = id;
     }
 
     public String getName() {

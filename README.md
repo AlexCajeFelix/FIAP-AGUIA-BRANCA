@@ -1,25 +1,92 @@
 # FIAP-AGUIA-BRANCA — Hub de Inovação
 
-Backend do **Hub de Inovação e Gestão de Projetos Corporativos**: API que substitui os mocks
-hoje consumidos pelo app Android via `ApiRepository` (npoint.io + fallback hardcoded) por
-persistência real.
+Backend do **Hub de Inovação e Gestão de Projetos Corporativos** da Águia Branca: a API que
+recebe ideias da operação, leva cada uma pela decisão do gestor e acompanha as que viram
+projeto — com o app Android consumindo tudo isso.
 
-> **Status:** aplicação de pé. As quatro fatias (`auth`, `idea`, `project`, `strategy`) têm
-> controller, service, repository e DTOs; o schema é versionado por Flyway. O backlog de
-> endurecimento, operação e testes está nas [issues](../../issues) e no
+> **Status:** de pé e integrado. As quatro fatias (`auth`, `idea`, `project`, `strategy`) têm
+> controller, service, repository e DTOs; a persistência é MongoDB; o app Android consome esta
+> API (sem mocks). O backlog de endurecimento e operação está nas [issues](../../issues) e no
 > [board](https://github.com/users/AlexCajeFelix/projects/4).
+
+```
+ operador ──▶ ideia ──▶ gestor decide ──▶ projeto ──▶ métricas ──▶ painel da liderança
+```
+
+---
+
+## O que dá para fazer
+
+**Operador**
+- Envia ideia ou relata problema da operação.
+- Acompanha o que enviou e em que pé está cada uma (rascunho, em análise, aprovada, recusada).
+- Lê as diretrizes estratégicas que a liderança publicou.
+- Pede ajuda da IA para transformar o rascunho em um texto claro, antes de enviar.
+
+**Gestor**
+- Recebe a fila de ideias esperando decisão e aprova ou recusa — sem poder revisar duas vezes.
+- Promove ideia aprovada a projeto, definindo o orçamento.
+- Atualiza progresso e gasto; cada alteração vira registro de auditoria.
+- Vê os projetos em execução e o histórico de cada métrica.
+
+**Liderança**
+- Painel com orçamento total, gasto, projetos por status e distribuição por data.
+- Publica, edita e remove diretrizes estratégicas (remoção é *soft delete*: some da leitura, fica no banco).
+- Enxerga tudo que gestor e operador enxergam.
+
+**Transversal**
+- Login com JWT (30 min) e refresh opaco rotacionado (7 dias); reúso de refresh derruba a sessão inteira.
+- Rate limit no login, por IP e por e-mail.
+- Erro sempre em RFC 7807, com `X-Request-Id` ligando resposta e log.
+- Contrato OpenAPI publicado pelo CI a cada build.
+
+---
 
 ## Rodando local
 
-Precisa de **Docker** (o Postgres dos testes sobe por Testcontainers) e de um Postgres para a app:
+Precisa só de **Docker**. Tudo (banco e API) sobe com um comando:
 
 ```bash
-docker run -d --name aguiabranca-db -p 5432:5432 \
-  -e POSTGRES_DB=aguiabranca -e POSTGRES_USER=aguiabranca -e POSTGRES_PASSWORD=aguiabranca \
-  postgres:16-alpine
+./run.sh                 # cria o .env, sobe mongo + API e imprime as credenciais
+./run.sh --app           # o mesmo, e ainda instala o app no emulador conectado
+./run.sh --down          # derruba tudo
+```
+
+Na mão, se preferir:
+
+```bash
+cp .env.example .env             # ajuste APP_PORT se a 8080 estiver ocupada
+docker compose up -d --build     # mongo:7 + a API, com o seed de desenvolvimento
+
+curl localhost:${APP_PORT:-8080}/actuator/health
+```
+
+O profile `dev` está ligado por padrão no compose, então o banco já sobe com usuários, ideias,
+projetos e diretrizes de exemplo — dá para entrar no app sem cadastrar nada.
+
+Para desenvolver com recarga rápida, sobe só o banco e roda a API pela JVM local:
+
+```bash
+docker compose up -d db          # mongo:7 em replica set de um no
 
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
+
+O `--replSet` não é enfeite: transação no MongoDB só existe em replica set, e
+`PATCH /projects/{id}/metrics` grava a métrica e o snapshot de auditoria na mesma transação.
+Contra um `mongod` avulso esse endpoint é o único que falha.
+
+Subindo o Mongo na mão, em vez do compose:
+
+```bash
+docker run -d --name aguiabranca-db -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+docker exec aguiabranca-db mongosh --quiet --eval \
+  "rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]})"
+```
+
+A URI default é `mongodb://localhost:27017/aguiabranca?directConnection=true`. O
+`directConnection` evita que o driver leia a lista de membros do replica set (`localhost:27017`,
+o endereço visto de dentro do container) e tente conectar nela a partir de fora.
 
 ### O segredo do JWT
 
@@ -37,9 +104,14 @@ qualquer profile diferente de `dev`.
 
 Fora de dev, a variável vem do ambiente — `.env.example` lista o que preencher.
 
-O Flyway aplica `V1__initial_schema.sql` em qualquer ambiente. O seed de desenvolvimento vive em
-`db/seed/` e **só entra com o profile `dev`** — em produção essas linhas não existem. Usuários
-criados pelo seed, um por perfil:
+Não há migration: no MongoDB o que precisa existir são índices e validadores, e o
+`MongoSchemaInitializer` cria os dois de forma idempotente a cada boot. Os validadores
+`$jsonSchema` são a tradução dos `CHECK` que o schema SQL tinha — role, status, horizonte e
+progresso entre 0 e 100 — e os campos de dinheiro exigem `bsonType: decimal`, que é o alarme
+para o dia em que alguém quebrar a conversão e o valor voltar a ser gravado como texto.
+
+O seed de desenvolvimento é o `DevSeedRunner` e **só existe com o profile `dev`** — em produção
+essas contas não nascem por construção. Usuários criados pelo seed, um por perfil:
 
 | E-mail | Senha | Perfil |
 |---|---|---|
@@ -70,6 +142,7 @@ comprometida) e responde `type` `https://aguiabranca.fiap.br/errors/refresh-inva
 | `GET` | `/ideas?status=` | autenticado — `OPERADOR` só vê as próprias |
 | `GET` | `/ideas/{id}` | autenticado — ideia alheia responde 404 para `OPERADOR` |
 | `POST` | `/ideas/{id}/approval` | `GESTOR`, `LIDERANCA` |
+| `POST` | `/ideas/suggest` | qualquer autenticado — só existe com `GEMINI_API_KEY` |
 | `GET` | `/projects` | qualquer autenticado |
 | `GET` | `/projects/summary` | qualquer autenticado |
 | `GET` | `/projects/{id}` | qualquer autenticado |
@@ -81,6 +154,35 @@ comprometida) e responde `type` `https://aguiabranca.fiap.br/errors/refresh-inva
 
 Erro sai em RFC 7807. O campo estável para o cliente decidir comportamento é o **`type`**, nunca
 o `title` — que é texto livre e muda.
+
+### O assistente de IA
+
+`POST /ideas/suggest` reescreve o rascunho de uma ideia com o Gemini. A chave fica no servidor
+(`GEMINI_API_KEY` no `.env`): embutida no APK, qualquer pessoa a extrairia com `apktool` e
+gastaria a cota. **Sem a variável, a fatia inteira fica fora do contexto** e a rota responde
+404 — nenhum teste e nenhum build dependem desse segredo.
+
+```bash
+curl -s localhost:8081/ideas/suggest -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Fila na inspecao","draft":"caminhao fica parado de manha esperando"}'
+```
+
+O prompt proíbe inventar número, prazo ou valor: uma "economia estimada de R$ 300 mil" saída do
+modelo entraria no sistema como se fosse análise de quem enviou a ideia.
+
+O tempo de conexao e leitura e limitado por `GEMINI_TIMEOUT` (padrao `PT20S`).
+A chave segue no header `x-goog-api-key`, sem aparecer na URL. Apenas respostas terminadas
+com `STOP`, sem trechos internos de raciocinio e com ate 2000 caracteres viram sugestoes;
+respostas cortadas ou bloqueadas devolvem 502 e o rascunho pode continuar sem IA.
+
+Para proteger a cota, cada usuario tem ate `GEMINI_REQUESTS_PER_MINUTE` chamadas por janela
+de um minuto (padrao 6), com no maximo `GEMINI_MAX_CONCURRENT` chamadas simultaneas na API
+(padrao 3). Excesso devolve 429 com `Retry-After`. Os limites ficam em memoria por instancia;
+varias replicas precisam compartilhar esse controle antes de escalar.
+
+Contrato do provedor: [GenerateContent](https://ai.google.dev/api/generate-content) e
+[autenticacao por chave](https://ai.google.dev/gemini-api/docs/api-key).
 
 ### Correlation ID
 
@@ -101,8 +203,327 @@ vazio depois da limpeza, a API descarta e gera o próprio.
 
 ---
 
+---
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    APP["App Android<br/>Kotlin + Compose"]
+    API["API Spring Boot 3.3.5<br/>Java 21"]
+    DB[("MongoDB 7<br/>replica set de 1 nó")]
+    IA["Gemini<br/>generativelanguage.googleapis.com"]
+
+    APP -->|"HTTPS · JWT no header"| API
+    API -->|"driver Mongo"| DB
+    API -->|"chave fica no servidor"| IA
+
+    subgraph Fatias verticais
+        AUTH["auth"]
+        IDEA["idea"]
+        PROJ["project"]
+        STRAT["strategy"]
+    end
+
+    API --- AUTH
+    API --- IDEA
+    API --- PROJ
+    API --- STRAT
+```
+
+A organização é por **fatia vertical**, não por camada técnica: `domain/idea` tem controller,
+service, repository, entidade e DTOs juntos. Mudança de regra de ideia acontece numa pasta só,
+e não espalhada por `controllers/`, `services/` e `repositories/`.
+
+O que é infraestrutura de verdade mora em `shared/persistence`: geração de id sequencial,
+conversão de dinheiro, índices e validadores, seed de desenvolvimento.
+
+### Por que o app não fala com o Gemini direto
+
+A chave ficaria dentro do APK. Qualquer pessoa extrai com `apktool` e passa a gastar a cota de
+quem publicou. O app chama `POST /ideas/suggest`, e o servidor — que já guarda segredo — fala
+com o Google.
+
+---
+
+## Modelo de dados
+
+Sete coleções. Sem *join*: a referência é sempre o id, e quem precisa do outro documento busca
+explicitamente.
+
+```mermaid
+erDiagram
+    users ||--o{ ideas : "ownerId"
+    users ||--o{ refresh_tokens : "userId"
+    ideas ||--o| projects : "ideaId (índice único parcial)"
+    projects ||--o{ project_metrics_history : "projectId"
+    users ||--o{ project_metrics_history : "changedById"
+
+    users {
+        Long _id
+        String name
+        String email UK
+        String passwordHash
+        String role "OPERADOR|GESTOR|LIDERANCA"
+        Date createdAt
+    }
+    ideas {
+        Long _id
+        String title
+        String description
+        String status "DRAFT|IN_REVIEW|APPROVED|REJECTED"
+        Long ownerId
+        Long reviewedById
+        Date reviewedAt
+    }
+    projects {
+        Long _id
+        String name
+        String status "PLANNING|IN_PROGRESS|COMPLETED|CANCELLED"
+        int progress "0..100"
+        Decimal128 budget
+        Decimal128 spent
+        Long ideaId
+    }
+    project_metrics_history {
+        Long _id
+        Long projectId
+        String metric "PROGRESS|SPENT"
+        Decimal128 oldValue
+        Decimal128 newValue
+        Long changedById
+        Date changedAt
+    }
+    strategies {
+        Long _id
+        String title
+        String description
+        String horizon "SHORT|MEDIUM|LONG"
+        Date deletedAt "nulo = ativa"
+    }
+    counters {
+        String _id "nome da coleção"
+        long seq
+    }
+```
+
+**Id continua `Long`.** O `_id` nativo do Mongo é um ObjectId de 24 hex; trocar mudaria
+`/projects/12`, o contrato OpenAPI e o app de uma vez. No lugar do `BIGSERIAL` entra a coleção
+`counters` com `findAndModify` e `$inc`, atômico no servidor.
+
+**Dinheiro é `Decimal128`**, nunca texto. O validador da coleção exige `bsonType: decimal` —
+é o alarme para o dia em que alguém quebrar a conversão, porque `$sum` sobre string devolve
+`null` e o total viraria zero na tela, sem erro nenhum.
+
+**Não há migration.** O que precisa existir são índices e validadores `$jsonSchema`, criados de
+forma idempotente a cada boot pelo `MongoSchemaInitializer` — a tradução dos `CHECK` e `UNIQUE`
+que o schema SQL tinha.
+
+---
+
+## Os dois fluxos que importam
+
+### Da ideia ao projeto
+
+```mermaid
+sequenceDiagram
+    participant O as Operador
+    participant G as Gestor
+    participant API
+    participant DB as MongoDB
+
+    O->>API: POST /ideas
+    API->>DB: insere (status DRAFT)
+    G->>API: GET /ideas
+    G->>API: POST /ideas/{id}/approval {APPROVED}
+    API->>DB: escrita condicional ao status pendente
+    Note over API,DB: segunda revisão simultânea recebe<br/>422 ideia-ja-revisada
+    G->>API: POST /projects/from-idea/{ideaId} {budget}
+    API->>DB: insere projeto
+    Note over API,DB: índice único parcial em ideaId<br/>impede promover duas vezes
+    G->>API: PATCH /projects/{id}/metrics {progress, spent}
+    API->>DB: projeto + snapshot na MESMA transação
+    Note over API,DB: transação exige replica set
+```
+
+O status do projeto **não é campo editável**: ele é consequência do progresso — 0 planeja,
+1 a 99 executa, 100 conclui.
+
+### Login e rotação do refresh
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant API
+
+    App->>API: POST /auth/login
+    API-->>App: accessToken (30 min) + refreshToken (7 dias)
+    App->>API: chamadas com Bearer
+    API-->>App: 401 quando o access expira
+    App->>API: POST /auth/refresh
+    API-->>App: par novo; o refresh usado é revogado
+    App->>API: POST /auth/refresh (token antigo, reúso)
+    API-->>App: 401 refresh-invalido
+    Note over API: a família inteira daquele login<br/>é revogada — sinal de roubo
+```
+
+A troca é atômica (`findAndModify` condicional): de duas requisições simultâneas com o mesmo
+refresh, só uma vence. A outra cai no caminho de reúso.
+
+---
+
+## Documentação viva do contrato
+
+| Onde | O quê |
+|---|---|
+| `http://localhost:8081/swagger-ui.html` | Swagger UI, com "Try it out" |
+| `http://localhost:8081/v3/api-docs` | OpenAPI 3 em JSON |
+| `target/openapi.json` | mesmo contrato, gerado no `./mvnw verify` |
+| Artefato `openapi` do CI | publicado a cada build, com 30 dias de retenção |
+
+Para autenticar no Swagger: `POST /auth/login`, copie o `accessToken` e cole em **Authorize**.
+
+### Exemplos
+
+```bash
+API=http://localhost:8081
+
+# 1. login
+TOKEN=$(curl -s $API/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"gestor@aguiabranca.dev","password":"gestor123"}' | jq -r .accessToken)
+
+# 2. criar ideia
+curl -s $API/ideas -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"Fila na inspecao","description":"Caminhao parado de manha esperando inspecao."}'
+
+# 3. aprovar
+curl -s $API/ideas/1/approval -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"status":"APPROVED"}'
+
+# 4. promover a projeto
+curl -s $API/projects/from-idea/1 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"budget":450000.00}'
+
+# 5. atualizar métricas
+curl -s -X PATCH $API/projects/1/metrics -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"progress":45,"spent":120000.50}'
+
+# 6. painel
+curl -s $API/projects/summary -H "Authorization: Bearer $TOKEN"
+```
+
+Resposta de erro, sempre no mesmo formato:
+
+```json
+{
+  "type": "https://aguiabranca.fiap.br/errors/ideia-ja-promovida",
+  "title": "Regra de negocio violada",
+  "status": 422,
+  "detail": "Ideia 4 já foi promovida a projeto.",
+  "instance": "urn:request-id:923e47b5-b636-4ffc-88a0-79d718727f19"
+}
+```
+
+O campo estável para o cliente decidir comportamento é o **`type`**. `title` é texto livre.
+
+---
+
+## Testes
+
+```bash
+./mvnw test                          # unitários + integração
+./mvnw verify                        # o anterior + contrato OpenAPI
+./mvnw verify -Dopenapi.port=8099    # se a 8080 estiver ocupada
+```
+
+**181 testes.** Precisam de Docker: o MongoDB sobe por Testcontainers, um container por JVM.
+Não há banco embarcado de mentira — a versão anterior caía para H2 quando faltava Docker, e o
+efeito prático era build verde sem banco nenhum.
+
+| Tipo | O que prova |
+|---|---|
+| Unitário de domínio | regra de ideia e de projeto sem contexto Spring |
+| Slice `@DataMongoTest` | agregações do dashboard, id sequencial, dinheiro como decimal |
+| Integração `@SpringBootTest` | fluxo completo por MockMvc, com Mongo de verdade |
+| Matriz de autorização | **toda rota do Spring MVC precisa estar declarada na matriz** — rota nova sem permissão declarada quebra o build |
+| Plano do dashboard | 100k projetos, exige COLLSCAN e menos de 200 ms |
+| Isolamento do seed | prova que as contas de desenvolvimento não existem fora do profile `dev` |
+
+---
+
+## O app Android
+
+Fica em [`app-android/`](app-android), no mesmo repositório — Kotlin + Jetpack Compose,
+`minSdk 28`, `compileSdk 36`.
+
+```bash
+cd app-android
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
+./gradlew :app:installDebug          # com um emulador ou aparelho conectado
+```
+
+O `BuildConfig.API_BASE_URL` do build de debug aponta para `http://10.0.2.2:8081` — que é como
+o emulador enxerga a máquina que hospeda a API. Em aparelho físico, troque pelo IP da máquina
+na rede local. O build de release aponta para HTTPS e **não** libera cleartext.
+
+| Camada do app | O que faz |
+|---|---|
+| `data/ApiConfig` | OkHttp + Retrofit, token no interceptor, refresh automático no `Authenticator` |
+| `data/ApiRepository` | única porta de entrada para a API; erro sobe como `ApiException` com a mensagem do backend |
+| `data/ApiMappers` | traduz o contrato para o que a tela mostra (status em português, dinheiro em BRL) |
+| `data/TokenStore` | par access/refresh em `SharedPreferences` privado |
+| `ui/…` | Compose por perfil: `operador`, `gestor`, `lideranca` |
+
+Sessão expirada (refresh recusado ou família revogada) derruba o app para a tela de login
+sozinha, em vez de repetir erro sem saída.
+
+### Sem emulador na máquina?
+
+```bash
+sdkmanager "platform-tools" "emulator" "platforms;android-36" \
+           "build-tools;36.1.0" "system-images;android-36;google_apis;x86_64"
+avdmanager create avd -n aguia -k "system-images;android-36;google_apis;x86_64" -d pixel_6
+emulator -avd aguia -gpu host &
+```
+
+Em Linux, confira que `/dev/kvm` é acessível — sem aceleração o emulador fica inutilizável.
+
+---
+
+## Estrutura
+
+```
+src/main/java/br/com/fiap/aguiabranca/
+├── domain/
+│   ├── ai/           assistente de redação (Gemini), ligado só com chave no ambiente
+│   ├── auth/         login, JWT, refresh rotacionado, rate limit, SecurityConfig
+│   ├── idea/         ideia e revisão
+│   ├── project/      projeto, métricas e auditoria
+│   ├── strategy/     diretrizes com soft delete
+│   └── user/         usuário e perfis
+└── shared/
+    ├── persistence/  id sequencial, conversões, índices e validadores, seed de dev
+    └── (erros RFC 7807, correlation id, OpenAPI)
+
+app-android/          app Kotlin + Compose que consome esta API
+compose.yaml          mongo + API
+run.sh                sobe tudo com um comando
+```
+
+---
+
 ## Índice
 
+- [O que dá para fazer](#o-que-dá-para-fazer)
+- [Rodando local](#rodando-local)
+- [Rotas](#rotas)
+- [Arquitetura](#arquitetura)
+- [Modelo de dados](#modelo-de-dados)
+- [Os dois fluxos que importam](#os-dois-fluxos-que-importam)
+- [Documentação viva do contrato](#documentação-viva-do-contrato)
+- [Testes](#testes)
+- [O app Android](#o-app-android)
+- [Estrutura](#estrutura)
 - [Stack alvo](#stack-alvo)
 - [Arquitetura pretendida](#arquitetura-pretendida)
 - [Como trabalhar aqui](#como-trabalhar-aqui) ← **comece por aqui**
@@ -124,11 +545,12 @@ vazio depois da limpeza, a API descarta e gera o próprio.
 |---|---|
 | Runtime | Java 21 |
 | Framework | Spring Boot 3.3.5 |
-| Banco | PostgreSQL + Flyway |
+| Banco | MongoDB 7 (replica set de um nó) |
 | Auth | JWT HS256 (jjwt 0.12) + refresh opaco rotacionado |
 | Erros | RFC 7807 (`ProblemDetail`) |
 | Testes | JUnit 5 + Testcontainers |
-| App cliente | Android (Kotlin) |
+| App cliente | Android (Kotlin + Compose), consumindo esta API |
+| IA (opcional) | Gemini via backend, chave só no servidor |
 
 ## Arquitetura pretendida
 
@@ -246,10 +668,12 @@ conforme fecha cada item — dá visibilidade sem ninguém precisar perguntar "c
 
 ```bash
 ./mvnw -q verify
+
+# 8080 ocupada na sua máquina? A geração do contrato OpenAPI sobe a app nessa porta:
+./mvnw -q verify -Dopenapi.port=8099
 ```
 
-Abrir PR vermelho gasta o tempo de quem revisa. (Enquanto a issue #1 não fechar, esse comando
-ainda não existe.)
+Abrir PR vermelho gasta o tempo de quem revisa.
 
 ### 5. Abra o PR
 

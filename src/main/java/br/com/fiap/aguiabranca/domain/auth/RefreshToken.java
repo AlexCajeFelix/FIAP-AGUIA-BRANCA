@@ -1,60 +1,45 @@
 package br.com.fiap.aguiabranca.domain.auth;
 
-import br.com.fiap.aguiabranca.domain.user.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "refresh_tokens")
-public class RefreshToken {
+@Document(collection = "refresh_tokens")
+public class RefreshToken implements SequentialDocument {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+    @NotBlank
     private String tokenHash;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @NotNull
+    private Long userId;
 
-    @Column(name = "family_id", nullable = false)
+    @NotNull
     private UUID familyId;
 
-    @Column(name = "expires_at", nullable = false)
+    @NotNull
     private Instant expiresAt;
 
-    @Column(name = "revoked_at")
     private Instant revokedAt;
 
-    @Column(name = "created_at", nullable = false)
+    @NotNull
     private Instant createdAt = Instant.now();
 
     protected RefreshToken() {
     }
 
-    public RefreshToken(String tokenHash, User user, UUID familyId, Instant expiresAt) {
+    public RefreshToken(String tokenHash, Long userId, UUID familyId, Instant expiresAt) {
         this.tokenHash = tokenHash;
-        this.user = user;
+        this.userId = userId;
         this.familyId = familyId;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
-    }
-
-    public void revoke(Instant when) {
-        if (this.revokedAt == null) {
-            this.revokedAt = when;
-        }
     }
 
     public boolean isRevoked() {
@@ -65,16 +50,25 @@ public class RefreshToken {
         return !expiresAt.isAfter(now);
     }
 
+    @Override
     public Long getId() {
         return id;
+    }
+
+    @Override
+    public void assignId(Long id) {
+        if (this.id != null) {
+            throw new IllegalStateException("Refresh token já tem id " + this.id);
+        }
+        this.id = id;
     }
 
     public String getTokenHash() {
         return tokenHash;
     }
 
-    public User getUser() {
-        return user;
+    public Long getUserId() {
+        return userId;
     }
 
     public UUID getFamilyId() {

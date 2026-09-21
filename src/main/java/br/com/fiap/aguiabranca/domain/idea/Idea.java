@@ -1,27 +1,17 @@
 package br.com.fiap.aguiabranca.domain.idea;
 
-import br.com.fiap.aguiabranca.domain.user.User;
 import br.com.fiap.aguiabranca.shared.DomainRuleException;
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import br.com.fiap.aguiabranca.shared.persistence.SequentialDocument;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Objects;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "ideas")
-public class Idea {
+@Document(collection = "ideas")
+public class Idea implements SequentialDocument {
 
     public enum Status {
         DRAFT,
@@ -31,7 +21,6 @@ public class Idea {
     }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank(message = "Título é obrigatório")
@@ -41,21 +30,17 @@ public class Idea {
     private String description;
 
     @NotNull
-    @Enumerated(EnumType.STRING)
     private Status status = Status.DRAFT;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id")
-    private User owner;
+    // Sem join no Mongo: guarda-se a referencia por id e quem precisa do usuario inteiro
+    // carrega pelo UserRepository. A API ja expunha apenas o id do dono.
+    private Long ownerId;
 
-    @Column(name = "created_at", nullable = false)
+    @NotNull
     private Instant createdAt = Instant.now();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reviewed_by_id")
-    private User reviewedBy;
+    private Long reviewedById;
 
-    @Column(name = "reviewed_at")
     private Instant reviewedAt;
 
     public Idea() {
@@ -68,18 +53,18 @@ public class Idea {
         this.createdAt = Instant.now();
     }
 
-    public Idea(String title, String description, User owner) {
+    public Idea(String title, String description, Long ownerId) {
         this(title, description);
-        this.owner = owner;
+        this.ownerId = ownerId;
     }
 
     public void review(Status newStatus) {
         review(newStatus, null);
     }
 
-    public void review(Status newStatus, User reviewer) {
+    public void review(Status newStatus, Long reviewerId) {
         if (newStatus == null || newStatus == Status.DRAFT) {
-            throw new IllegalArgumentException("Status de revisão inválido");
+            throw new DomainRuleException(ErrorTypes.VALIDATION, "Status de revisão inválido.");
         }
         // Revisar de novo o que ja foi decidido apagaria a decisao anterior sem deixar rastro.
         if (isReviewed()) {
@@ -87,7 +72,7 @@ public class Idea {
                     "Ideia já revisada com status " + this.status + ".");
         }
         this.status = newStatus;
-        this.reviewedBy = reviewer;
+        this.reviewedById = reviewerId;
         this.reviewedAt = Instant.now();
     }
 
@@ -101,11 +86,20 @@ public class Idea {
 
     /** O OPERADOR so enxerga o que e dele; os demais perfis enxergam tudo. */
     public boolean isOwnedBy(Long userId) {
-        return owner != null && Objects.equals(owner.getId(), userId);
+        return ownerId != null && Objects.equals(ownerId, userId);
     }
 
+    @Override
     public Long getId() {
         return id;
+    }
+
+    @Override
+    public void assignId(Long id) {
+        if (this.id != null) {
+            throw new IllegalStateException("Ideia já tem id " + this.id);
+        }
+        this.id = id;
     }
 
     public String getTitle() {
@@ -120,16 +114,16 @@ public class Idea {
         return status;
     }
 
-    public User getOwner() {
-        return owner;
+    public Long getOwnerId() {
+        return ownerId;
     }
 
     public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public User getReviewedBy() {
-        return reviewedBy;
+    public Long getReviewedById() {
+        return reviewedById;
     }
 
     public Instant getReviewedAt() {

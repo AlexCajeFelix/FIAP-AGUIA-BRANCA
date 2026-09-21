@@ -2,11 +2,11 @@ package br.com.fiap.aguiabranca.domain.idea;
 
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface IdeaRepository extends JpaRepository<Idea, Long> {
+public interface IdeaRepository extends MongoRepository<Idea, Long>, IdeaReviewStore {
 
     List<Idea> findAllByStatusOrderByIdDesc(Idea.Status status);
 

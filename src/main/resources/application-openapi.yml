@@ -1,14 +1,12 @@
+# Profile usado so para gerar o contrato OpenAPI no build (spring-boot:start + springdoc).
+#
+# Nao ha banco aqui: o driver do Mongo conecta preguicosamente, entao a aplicacao sobe e serve
+# /v3/api-docs sem nunca tocar o servidor. O MongoSchemaInitializer, que tocaria, e o unico
+# componente excluido deste profile.
 spring:
-  datasource:
-    url: jdbc:h2:mem:openapi;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: create
-  flyway:
-    enabled: false
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/openapi-sem-banco
 
 app:
   jwt:

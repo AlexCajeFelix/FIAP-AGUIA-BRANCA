@@ -111,6 +111,15 @@ class AuthorizationMatrixIntegrationTest extends IntegrationTestSupport {
                                         Role.OPERADOR, Access.FORBIDDEN,
                                         Role.GESTOR, Access.ALLOWED,
                                         Role.LIDERANCA, Access.ALLOWED)),
+                        // O assistente de IA so existe quando ha GEMINI_API_KEY no ambiente. A
+                        // entrada fica na matriz nos dois casos: sem a chave a rota responde 404,
+                        // que nao e 401 nem 403 e portanto continua valendo como "pode acessar".
+                        // O corpo {} que este teste envia para em @Valid, antes de chamar o
+                        // Gemini — nenhuma requisicao de verdade sai daqui.
+                        new RouteMatrixEntry(HttpMethod.POST, "/ideas/suggest", false, Map.of(
+                                        Role.OPERADOR, Access.ALLOWED,
+                                        Role.GESTOR, Access.ALLOWED,
+                                        Role.LIDERANCA, Access.ALLOWED)),
 
                         // Domínio Projects
                         new RouteMatrixEntry(HttpMethod.GET, "/projects", false, Map.of(

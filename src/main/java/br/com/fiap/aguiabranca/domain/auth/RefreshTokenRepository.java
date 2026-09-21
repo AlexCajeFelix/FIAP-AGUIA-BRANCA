@@ -1,21 +1,15 @@
 package br.com.fiap.aguiabranca.domain.auth;
 
-import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+public interface RefreshTokenRepository extends MongoRepository<RefreshToken, Long>, RefreshTokenRevocation {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT t FROM RefreshToken t WHERE t.tokenHash = :hash")
-    Optional<RefreshToken> findByTokenHashForUpdate(@Param("hash") String hash);
+    Optional<RefreshToken> findByTokenHash(String tokenHash);
 
     List<RefreshToken> findByFamilyId(UUID familyId);
 }

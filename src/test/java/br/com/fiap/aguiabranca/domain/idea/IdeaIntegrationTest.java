@@ -4,6 +4,8 @@ import br.com.fiap.aguiabranca.domain.user.Role;
 import br.com.fiap.aguiabranca.support.IntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
@@ -244,5 +246,34 @@ class IdeaIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.type").value("https://aguiabranca.fiap.br/errors/validacao"))
                 .andExpect(jsonPath("$.title").exists())
                 .andExpect(jsonPath("$.status").value(422));
+    }
+
+    @Autowired
+    private IdeaRepository ideas;
+
+    @Test
+    void shouldRejectDraftReviewWith422InsteadOf500() throws Exception {
+        String token = tokenFor("gestor@teste.dev", Role.GESTOR);
+        Idea idea = ideas.save(new Idea("Fila", "Organizar inspecao", 1L));
+        mockMvc.perform(post("/ideas/" + idea.getId() + "/approval")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DRAFT\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.type").value("https://aguiabranca.fiap.br/errors/validacao"));
+        assertThat(ideas.findById(idea.getId()).orElseThrow().getStatus()).isEqualTo(Idea.Status.DRAFT);
+    }
+
+    @Test
+    void shouldPreserveFirstDecisionEvenWhenSecondReviewerHasStaleCopy() {
+        Idea idea = ideas.save(new Idea("Fila", "Organizar inspecao", 1L));
+        Idea first = ideas.findById(idea.getId()).orElseThrow();
+        Idea stale = ideas.findById(idea.getId()).orElseThrow();
+        first.review(Idea.Status.APPROVED, 10L);
+        stale.review(Idea.Status.REJECTED, 11L);
+        assertThat(ideas.saveReviewIfPending(first)).isTrue();
+        assertThat(ideas.saveReviewIfPending(stale)).isFalse();
+        Idea saved = ideas.findById(idea.getId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(Idea.Status.APPROVED);
+        assertThat(saved.getReviewedById()).isEqualTo(10L);
     }
 }

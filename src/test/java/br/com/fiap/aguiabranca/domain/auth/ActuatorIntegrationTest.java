@@ -28,14 +28,14 @@ class ActuatorIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("Health autenticado mostra o status do Postgres")
+    @DisplayName("Health autenticado mostra o status do MongoDB")
     void shouldShowDatabaseStatusWhenAuthorized() throws Exception {
         String token = tokenFor("gestor-actuator@teste.dev", Role.GESTOR);
 
         mockMvc.perform(get("/actuator/health").header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.components.db.status").value("UP"));
+                .andExpect(jsonPath("$.components.mongo.status").value("UP"));
     }
 
     @Test

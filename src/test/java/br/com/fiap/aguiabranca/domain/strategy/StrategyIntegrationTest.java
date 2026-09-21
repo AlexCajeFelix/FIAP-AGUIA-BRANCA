@@ -76,11 +76,12 @@ class StrategyIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(delete("/strategies/1").header("Authorization", bearer(token)))
                 .andExpect(status().isNoContent());
 
-        // Pelo Hibernate a linha some; o SQL nativo prova que ela continua la.
-        var deletedAt = jdbcTemplate.queryForObject(
-                "SELECT deleted_at FROM strategies WHERE id = 1",
-                java.sql.Timestamp.class);
-        assertThat(deletedAt).isNotNull();
+        // Pelo repositorio o documento some; a consulta crua prova que ele continua la.
+        org.bson.Document deleted = mongoTemplate.getCollection("strategies")
+                .find(new org.bson.Document("_id", 1L))
+                .first();
+        assertThat(deleted).isNotNull();
+        assertThat(deleted.get("deletedAt")).isNotNull();
 
         mockMvc.perform(get("/strategies").header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
