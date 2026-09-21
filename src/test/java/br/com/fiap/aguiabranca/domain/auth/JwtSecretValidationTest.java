@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Valida o boot, nao o runtime: por isso ApplicationContextRunner em vez de @SpringBootTest.
  * O que se afirma aqui e "o contexto NAO sobe", e subir a app inteira so para vê-la falhar
- * custaria um Postgres por caso de teste.
+ * deixaria o teste mais lento e menos focado.
  */
 class JwtSecretValidationTest {
 

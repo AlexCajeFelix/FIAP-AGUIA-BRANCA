@@ -5,14 +5,12 @@ on:
   push:
     branches: [main]
 
-# Um PR que recebe varios pushes seguidos nao precisa manter os builds antigos na fila.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # O nome "build" e o que a branch protection da #5 exige como status check.
-  # Renomear este job quebra a protecao da main silenciosamente.
+  # O nome "build" e o status check exigido pela branch protection.
   build:
     name: build
     runs-on: ubuntu-latest
@@ -27,8 +25,6 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # O runner ubuntu-latest ja traz Docker, entao o Testcontainers sobe o
-      # proprio Postgres. Nao use services: aqui — daria dois bancos no mesmo job.
       - name: Build e testes
         run: ./mvnw -B verify
 
