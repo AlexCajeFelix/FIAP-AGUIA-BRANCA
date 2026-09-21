@@ -1,43 +1,29 @@
 package br.com.fiap.aguiabranca.domain.auth;
 
 import br.com.fiap.aguiabranca.domain.user.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "refresh_tokens")
+@Document("refresh_tokens")
 public class RefreshToken {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+    @Indexed(unique = true)
     private String tokenHash;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private Long userId;
 
-    @Column(name = "family_id", nullable = false)
     private UUID familyId;
 
-    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(name = "revoked_at")
     private Instant revokedAt;
 
-    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
     protected RefreshToken() {
@@ -45,7 +31,7 @@ public class RefreshToken {
 
     public RefreshToken(String tokenHash, User user, UUID familyId, Instant expiresAt) {
         this.tokenHash = tokenHash;
-        this.user = user;
+        this.userId = user.getId();
         this.familyId = familyId;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
@@ -55,6 +41,10 @@ public class RefreshToken {
         if (this.revokedAt == null) {
             this.revokedAt = when;
         }
+    }
+
+    public void expireAt(Instant when) {
+        this.expiresAt = when;
     }
 
     public boolean isRevoked() {
@@ -69,12 +59,24 @@ public class RefreshToken {
         return id;
     }
 
+    public void assignId(Long id) {
+        if (this.id == null) {
+            this.id = id;
+        }
+    }
+
     public String getTokenHash() {
         return tokenHash;
     }
 
     public User getUser() {
+        User user = new User();
+        user.assignId(userId);
         return user;
+    }
+
+    public Long getUserId() {
+        return userId;
     }
 
     public UUID getFamilyId() {

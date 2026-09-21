@@ -2,11 +2,12 @@ package br.com.fiap.aguiabranca.domain.idea;
 
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
-public interface IdeaRepository extends JpaRepository<Idea, Long> {
+public interface IdeaRepository {
+
+    Idea save(Idea idea);
+
+    Optional<Idea> findById(Long id);
 
     List<Idea> findAllByStatusOrderByIdDesc(Idea.Status status);
 
@@ -17,4 +18,6 @@ public interface IdeaRepository extends JpaRepository<Idea, Long> {
     List<Idea> findAllByOrderByIdDesc();
 
     Optional<Idea> findByIdAndOwnerId(Long id, Long ownerId);
+
+    void deleteAll();
 }

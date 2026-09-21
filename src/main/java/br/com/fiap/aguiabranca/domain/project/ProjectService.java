@@ -78,7 +78,7 @@ public class ProjectService {
         }
 
         Project project = projects.findById(id).orElseThrow(() -> notFound(id));
-        User changedBy = users.getReferenceById(actor.id());
+        User changedBy = users.findById(actor.id()).orElseThrow(() -> notFound(actor.id()));
         List<ProjectMetricsHistory> snapshots = new ArrayList<>();
 
         if (request.progress() != null) {

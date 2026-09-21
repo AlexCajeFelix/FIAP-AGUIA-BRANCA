@@ -1,15 +1,9 @@
-spring:
-  datasource:
-    url: jdbc:h2:mem:openapi;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: create
-  flyway:
-    enabled: false
-
 app:
   jwt:
     secret: ${JWT_SECRET:segredo-de-teste-com-mais-de-32-bytes-para-hs256}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
