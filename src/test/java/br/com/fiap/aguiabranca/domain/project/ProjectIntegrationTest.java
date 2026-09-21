@@ -2,9 +2,7 @@ package br.com.fiap.aguiabranca.domain.project;
 
 import br.com.fiap.aguiabranca.domain.user.Role;
 import br.com.fiap.aguiabranca.support.IntegrationTestSupport;
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -22,10 +20,11 @@ import org.hamcrest.Matchers;
 /**
  * Integracao da fatia de Projetos: rota, transacao e snapshot de auditoria.
  *
- * As afirmacoes sobre o que ficou gravado passam por JdbcTemplate, nao pelos repositorios JPA.
- * Ler pelo repositorio dentro da mesma transacao de teste devolveria a entidade do cache de
- * primeiro nivel — o teste passaria verde mesmo que o INSERT nunca tivesse ido ao banco, que e
- * exatamente o falso positivo que esta fatia nao pode ter.
+ * As afirmacoes sobre o que ficou gravado passam pelos repositorios de dominio
+ * (`projects` e `history`), nao pela resposta da rota. Conferir o snapshot pelo corpo do PATCH
+ * nao provaria nada: o JSON e montado da entidade em memoria e sairia igual mesmo que a
+ * gravacao do historico nunca tivesse acontecido. Ler do repositorio olha o que sobrou no
+ * armazenamento depois que a requisicao terminou.
  */
 class ProjectIntegrationTest extends IntegrationTestSupport {
 
@@ -114,11 +113,11 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
                 // 0 -> 40 sai de PLANNING e entra em IN_PROGRESS pela regra da entidade.
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
-        List<Map<String, Object>> rows = historyRows();
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("metric", "PROGRESS");
-        assertThat(decimal(rows.get(0), "old_value")).isEqualByComparingTo("0");
-        assertThat(decimal(rows.get(0), "new_value")).isEqualByComparingTo("40");
+        List<ProjectMetricsHistory> entries = historyOf(projectId);
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getMetric()).isEqualTo(ProjectMetricsHistory.Metric.PROGRESS);
+        assertThat(entries.get(0).getOldValue()).isEqualByComparingTo("0");
+        assertThat(entries.get(0).getNewValue()).isEqualByComparingTo("40");
     }
 
     @Test
@@ -130,15 +129,15 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
         patchMetrics(gestor, projectId, "{\"progress\": 30}").andExpect(status().isOk());
         patchMetrics(gestor, projectId, "{\"progress\": 65}").andExpect(status().isOk());
 
-        List<Map<String, Object>> rows = historyRows();
-        assertThat(rows).hasSize(2);
+        List<ProjectMetricsHistory> entries = historyOf(projectId);
+        assertThat(entries).hasSize(2);
 
-        assertThat(decimal(rows.get(0), "old_value")).isEqualByComparingTo("0");
-        assertThat(decimal(rows.get(0), "new_value")).isEqualByComparingTo("30");
-        // O old_value da segunda tem de ser o new_value da primeira: e isso que torna a
+        assertThat(entries.get(0).getOldValue()).isEqualByComparingTo("0");
+        assertThat(entries.get(0).getNewValue()).isEqualByComparingTo("30");
+        // O oldValue da segunda tem de ser o newValue da primeira: e isso que torna a
         // trilha reconstruivel. Se vier 0 de novo, o snapshot leu a entidade antes da escrita.
-        assertThat(decimal(rows.get(1), "old_value")).isEqualByComparingTo("30");
-        assertThat(decimal(rows.get(1), "new_value")).isEqualByComparingTo("65");
+        assertThat(entries.get(1).getOldValue()).isEqualByComparingTo("30");
+        assertThat(entries.get(1).getNewValue()).isEqualByComparingTo("65");
     }
 
     @Test
@@ -156,7 +155,7 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.type").value("https://aguiabranca.fiap.br/errors/progresso-invalido"));
 
-        assertThat(historyRows()).isEmpty();
+        assertThat(historyOf(projectId)).isEmpty();
     }
 
     @Test
@@ -171,13 +170,12 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.status").value(422));
 
-        assertThat(historyRows()).isEmpty();
+        assertThat(historyOf(projectId)).isEmpty();
 
-        Map<String, Object> project = jdbcTemplate.queryForMap(
-                "SELECT progress, status, spent FROM projects WHERE id = ?", projectId);
-        assertThat(project.get("progress")).isEqualTo(0);
-        assertThat(project.get("status")).isEqualTo("PLANNING");
-        assertThat(decimal(project, "spent")).isEqualByComparingTo("0");
+        Project project = projects.findById(projectId).orElseThrow();
+        assertThat(project.getProgress()).isZero();
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.PLANNING);
+        assertThat(project.getSpent()).isEqualByComparingTo("0");
     }
 
     // ───────────────────────── autorizacao ─────────────────────────
@@ -205,7 +203,7 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
 
         // 403 tem de barrar antes do efeito colateral, nao depois.
         assertThat(countProjects()).isEqualTo(1);
-        assertThat(historyRows()).isEmpty();
+        assertThat(historyOf(projectId)).isEmpty();
     }
 
     // ───────────────────────── apoio ─────────────────────────
@@ -253,16 +251,10 @@ class ProjectIntegrationTest extends IntegrationTestSupport {
     }
 
     private int countProjects() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM projects", Integer.class);
+        return projects.findAllByOrderByIdDesc().size();
     }
 
-    private List<Map<String, Object>> historyRows() {
-        return jdbcTemplate.queryForList(
-                "SELECT metric, old_value, new_value FROM project_metrics_history ORDER BY id");
-    }
-
-    private BigDecimal decimal(Map<String, Object> row, String column) {
-        Object value = row.get(column);
-        return value == null ? null : new BigDecimal(value.toString());
+    private List<ProjectMetricsHistory> historyOf(Long projectId) {
+        return history.findAllByProjectIdOrderByChangedAtAscIdAsc(projectId);
     }
 }
