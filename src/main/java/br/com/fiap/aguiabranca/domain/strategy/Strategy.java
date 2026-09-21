@@ -1,18 +1,11 @@
 package br.com.fiap.aguiabranca.domain.strategy;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Objects;
-import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
  * Estrategia corporativa, com soft delete.
@@ -21,13 +14,10 @@ import org.hibernate.annotations.SQLRestriction;
  * excluida some das leituras mas continua na tabela. Para provar que ela continua la, o teste
  * precisa consultar por SQL nativo: pelo repositorio ela e invisivel por construcao.
  */
-@Entity
-@Table(name = "strategies")
-@SQLRestriction("deleted_at is null")
+@Document("strategies")
 public class Strategy {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank(message = "Título é obrigatório")
@@ -37,13 +27,10 @@ public class Strategy {
     private String description;
 
     @NotNull
-    @Enumerated(EnumType.STRING)
     private Horizon horizon;
 
-    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    @Column(name = "deleted_at")
     private Instant deletedAt;
 
     protected Strategy() {
@@ -72,6 +59,12 @@ public class Strategy {
 
     public Long getId() {
         return id;
+    }
+
+    public void assignId(Long id) {
+        if (this.id == null) {
+            this.id = id;
+        }
     }
 
     public String getTitle() {

@@ -3,70 +3,30 @@ package br.com.fiap.aguiabranca.support;
 import br.com.fiap.aguiabranca.domain.user.Role;
 import br.com.fiap.aguiabranca.domain.user.User;
 import br.com.fiap.aguiabranca.domain.user.UserRepository;
+import br.com.fiap.aguiabranca.domain.auth.RefreshTokenRepository;
+import br.com.fiap.aguiabranca.domain.idea.IdeaRepository;
+import br.com.fiap.aguiabranca.domain.project.ProjectMetricsHistoryRepository;
+import br.com.fiap.aguiabranca.domain.project.ProjectRepository;
+import br.com.fiap.aguiabranca.domain.strategy.StrategyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Base dos testes de integracao.
- *
- * O container e um singleton estatico iniciado uma vez por JVM, nao
- * um @Container por classe:
- * com @Container cada classe de teste sobe e derruba o proprio Postgres, e a
- * suite passa a
- * levar minutos. O Ryuk do Testcontainers cuida de remover o container ao fim
- * do processo.
+ * Base dos testes de integracao. No profile integration os repositorios usam
+ * armazenamento em memoria, entao a suite fica deterministica sem Docker.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("integration")
 public abstract class IntegrationTestSupport {
-
-    public static final PostgreSQLContainer<?> POSTGRES;
-    private static final boolean IS_DOCKER_AVAILABLE;
-
-    static {
-        PostgreSQLContainer<?> container = null;
-        boolean dockerAvailable = false;
-        try {
-            container = new PostgreSQLContainer<>("postgres:16-alpine");
-            container.start();
-            dockerAvailable = true;
-        } catch (Throwable t) {
-            container = null;
-            dockerAvailable = false;
-        }
-        POSTGRES = container;
-        IS_DOCKER_AVAILABLE = dockerAvailable;
-    }
-
-    @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
-        if (IS_DOCKER_AVAILABLE && POSTGRES != null && POSTGRES.isRunning()) {
-            registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-            registry.add("spring.datasource.username", POSTGRES::getUsername);
-            registry.add("spring.datasource.password", POSTGRES::getPassword);
-        } else {
-            registry.add("spring.datasource.url",
-                    () -> "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;CASE_INSENSITIVE_IDENTIFIERS=TRUE");
-            registry.add("spring.datasource.username", () -> "sa");
-            registry.add("spring.datasource.password", () -> "");
-            registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
-            registry.add("spring.flyway.enabled", () -> "false");
-            registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-        }
-    }
 
     @Autowired
     protected MockMvc mockMvc;
@@ -75,10 +35,22 @@ public abstract class IntegrationTestSupport {
     protected ObjectMapper objectMapper;
 
     @Autowired
-    protected JdbcTemplate jdbcTemplate;
+    protected UserRepository users;
 
     @Autowired
-    protected UserRepository users;
+    protected IdeaRepository ideas;
+
+    @Autowired
+    protected StrategyRepository strategies;
+
+    @Autowired
+    protected ProjectRepository projects;
+
+    @Autowired
+    protected ProjectMetricsHistoryRepository history;
+
+    @Autowired
+    protected RefreshTokenRepository refreshTokens;
 
     @Autowired
     protected PasswordEncoder passwordEncoder;
@@ -100,19 +72,12 @@ public abstract class IntegrationTestSupport {
         if (loginRateLimiter != null) {
             loginRateLimiter.clearAllLimits();
         }
-        if (IS_DOCKER_AVAILABLE && POSTGRES != null && POSTGRES.isRunning()) {
-            jdbcTemplate.execute("""
-                    TRUNCATE TABLE project_metrics_history, projects, ideas, strategies, refresh_tokens, users
-                    RESTART IDENTITY CASCADE
-                    """);
-        } else {
-            jdbcTemplate.execute("DELETE FROM project_metrics_history");
-            jdbcTemplate.execute("DELETE FROM projects");
-            jdbcTemplate.execute("DELETE FROM ideas");
-            jdbcTemplate.execute("DELETE FROM strategies");
-            jdbcTemplate.execute("DELETE FROM refresh_tokens");
-            jdbcTemplate.execute("DELETE FROM users");
-        }
+        history.deleteAll();
+        projects.deleteAll();
+        ideas.deleteAll();
+        strategies.deleteAll();
+        refreshTokens.deleteAll();
+        users.deleteAll();
     }
 
     protected User givenUser(String email, String rawPassword, Role role) {
