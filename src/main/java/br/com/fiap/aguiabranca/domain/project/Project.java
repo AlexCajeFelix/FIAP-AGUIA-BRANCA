@@ -3,17 +3,6 @@ package br.com.fiap.aguiabranca.domain.project;
 import br.com.fiap.aguiabranca.domain.idea.Idea;
 import br.com.fiap.aguiabranca.shared.DomainRuleException;
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -21,13 +10,14 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "projects")
+@Document("projects")
 public class Project {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank(message = "Nome é obrigatório")
@@ -41,18 +31,14 @@ public class Project {
     private BigDecimal budget;
 
     @NotNull
-    @Enumerated(EnumType.STRING)
     private ProjectStatus status = ProjectStatus.PLANNING;
 
     @NotNull
     private BigDecimal spent = BigDecimal.ZERO;
 
-    // OneToOne com a coluna UNIQUE no banco: a mesma ideia nao vira dois projetos.
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idea_id", unique = true)
-    private Idea idea;
+    @Indexed(unique = true, sparse = true)
+    private Long ideaId;
 
-    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
     public Project() {
@@ -70,7 +56,7 @@ public class Project {
     /** Promocao de ideia aprovada. A checagem de "aprovada" e do service, que ve o repositorio. */
     public static Project fromIdea(Idea idea, BigDecimal budget) {
         Project project = new Project(idea.getTitle(), 0, budget);
-        project.idea = idea;
+        project.ideaId = idea.getId();
         return project;
     }
 
@@ -99,6 +85,12 @@ public class Project {
         return id;
     }
 
+    public void assignId(Long id) {
+        if (this.id == null) {
+            this.id = id;
+        }
+    }
+
     public String getName() {
         return name;
     }
@@ -120,7 +112,11 @@ public class Project {
     }
 
     public Idea getIdea() {
-        return idea;
+        return ideaId == null ? null : new IdeaRef(ideaId);
+    }
+
+    public Long getIdeaId() {
+        return ideaId;
     }
 
     public Instant getCreatedAt() {
@@ -140,5 +136,11 @@ public class Project {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    private static final class IdeaRef extends Idea {
+        private IdeaRef(Long id) {
+            assignId(id);
+        }
     }
 }

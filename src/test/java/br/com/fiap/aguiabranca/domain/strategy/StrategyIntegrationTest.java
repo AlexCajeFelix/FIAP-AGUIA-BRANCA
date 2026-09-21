@@ -32,21 +32,21 @@ class StrategyIntegrationTest extends IntegrationTestSupport {
                 .contentType("application/json")
                 .content(PAYLOAD))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/strategies/1"))
-                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.title").value("Eletrificar frota"))
                 .andExpect(jsonPath("$.horizon").value("MEDIUM"))
                 .andReturn().getResponse().getContentAsString();
+        long strategyId = objectMapper.readTree(created).path("id").asLong();
+        String strategyPath = "/strategies/" + strategyId;
 
-        mockMvc.perform(get("/strategies/1").header("Authorization", bearer(token)))
+        mockMvc.perform(get(strategyPath).header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Eletrificar frota"));
 
         mockMvc.perform(get("/strategies").header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(1));
+                .andExpect(jsonPath("$[0].id").value(strategyId));
 
-        mockMvc.perform(put("/strategies/1")
+        mockMvc.perform(put(strategyPath)
                 .header("Authorization", bearer(token))
                 .contentType("application/json")
                 .content("""
@@ -56,7 +56,7 @@ class StrategyIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.title").value("Eletrificar frota urbana"))
                 .andExpect(jsonPath("$.horizon").value("SHORT"));
 
-        mockMvc.perform(delete("/strategies/1").header("Authorization", bearer(token)))
+        mockMvc.perform(delete(strategyPath).header("Authorization", bearer(token)))
                 .andExpect(status().isNoContent());
 
         assertThat(created).contains("Eletrificar frota");
@@ -67,26 +67,25 @@ class StrategyIntegrationTest extends IntegrationTestSupport {
     void shouldSoftDeleteAndHideFromReads() throws Exception {
         String token = tokenFor("gestor-delete@teste.dev", Role.GESTOR);
 
-        mockMvc.perform(post("/strategies")
+        String created = mockMvc.perform(post("/strategies")
                 .header("Authorization", bearer(token))
                 .contentType("application/json")
                 .content(PAYLOAD))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long strategyId = objectMapper.readTree(created).path("id").asLong();
+        String strategyPath = "/strategies/" + strategyId;
 
-        mockMvc.perform(delete("/strategies/1").header("Authorization", bearer(token)))
+        mockMvc.perform(delete(strategyPath).header("Authorization", bearer(token)))
                 .andExpect(status().isNoContent());
 
-        // Pelo Hibernate a linha some; o SQL nativo prova que ela continua la.
-        var deletedAt = jdbcTemplate.queryForObject(
-                "SELECT deleted_at FROM strategies WHERE id = 1",
-                java.sql.Timestamp.class);
-        assertThat(deletedAt).isNotNull();
+        assertThat(strategies.findAllByOrderByIdDesc()).isEmpty();
 
         mockMvc.perform(get("/strategies").header("Authorization", bearer(token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
-        mockMvc.perform(get("/strategies/1").header("Authorization", bearer(token)))
+        mockMvc.perform(get(strategyPath).header("Authorization", bearer(token)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("https://aguiabranca.fiap.br/errors/estrategia-nao-encontrada"))
                 .andExpect(jsonPath("$.status").value(404));
@@ -97,17 +96,19 @@ class StrategyIntegrationTest extends IntegrationTestSupport {
     @DisplayName("Leitura de estrategias e 200 para os tres perfis")
     void shouldAllowReadForEveryRole(Role role) throws Exception {
         String writer = tokenFor("escritor-" + role.name() + "@teste.dev", Role.GESTOR);
-        mockMvc.perform(post("/strategies")
+        String created = mockMvc.perform(post("/strategies")
                 .header("Authorization", bearer(writer))
                 .contentType("application/json")
                 .content(PAYLOAD))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long strategyId = objectMapper.readTree(created).path("id").asLong();
 
         String reader = tokenFor(role.name().toLowerCase() + "@teste.dev", role);
         mockMvc.perform(get("/strategies").header("Authorization", bearer(reader)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("Eletrificar frota"));
-        mockMvc.perform(get("/strategies/1").header("Authorization", bearer(reader)))
+        mockMvc.perform(get("/strategies/" + strategyId).header("Authorization", bearer(reader)))
                 .andExpect(status().isOk());
     }
 

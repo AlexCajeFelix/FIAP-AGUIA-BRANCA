@@ -3,24 +3,14 @@ package br.com.fiap.aguiabranca.domain.idea;
 import br.com.fiap.aguiabranca.domain.user.User;
 import br.com.fiap.aguiabranca.shared.DomainRuleException;
 import br.com.fiap.aguiabranca.shared.ErrorTypes;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.Objects;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "ideas")
+@Document("ideas")
 public class Idea {
 
     public enum Status {
@@ -31,7 +21,6 @@ public class Idea {
     }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank(message = "Título é obrigatório")
@@ -41,21 +30,14 @@ public class Idea {
     private String description;
 
     @NotNull
-    @Enumerated(EnumType.STRING)
     private Status status = Status.DRAFT;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id")
-    private User owner;
+    private Long ownerId;
 
-    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reviewed_by_id")
-    private User reviewedBy;
+    private Long reviewedById;
 
-    @Column(name = "reviewed_at")
     private Instant reviewedAt;
 
     public Idea() {
@@ -70,7 +52,7 @@ public class Idea {
 
     public Idea(String title, String description, User owner) {
         this(title, description);
-        this.owner = owner;
+        this.ownerId = owner.getId();
     }
 
     public void review(Status newStatus) {
@@ -87,7 +69,7 @@ public class Idea {
                     "Ideia já revisada com status " + this.status + ".");
         }
         this.status = newStatus;
-        this.reviewedBy = reviewer;
+        this.reviewedById = reviewer == null ? null : reviewer.getId();
         this.reviewedAt = Instant.now();
     }
 
@@ -101,11 +83,17 @@ public class Idea {
 
     /** O OPERADOR so enxerga o que e dele; os demais perfis enxergam tudo. */
     public boolean isOwnedBy(Long userId) {
-        return owner != null && Objects.equals(owner.getId(), userId);
+        return Objects.equals(ownerId, userId);
     }
 
     public Long getId() {
         return id;
+    }
+
+    public void assignId(Long id) {
+        if (this.id == null) {
+            this.id = id;
+        }
     }
 
     public String getTitle() {
@@ -121,7 +109,11 @@ public class Idea {
     }
 
     public User getOwner() {
-        return owner;
+        return ownerId == null ? null : new UserRef(ownerId);
+    }
+
+    public Long getOwnerId() {
+        return ownerId;
     }
 
     public Instant getCreatedAt() {
@@ -129,7 +121,11 @@ public class Idea {
     }
 
     public User getReviewedBy() {
-        return reviewedBy;
+        return reviewedById == null ? null : new UserRef(reviewedById);
+    }
+
+    public Long getReviewedById() {
+        return reviewedById;
     }
 
     public Instant getReviewedAt() {
@@ -149,5 +145,11 @@ public class Idea {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    private static final class UserRef extends User {
+        private UserRef(Long id) {
+            assignId(id);
+        }
     }
 }

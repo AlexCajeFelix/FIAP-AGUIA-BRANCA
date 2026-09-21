@@ -1,11 +1,14 @@
 package br.com.fiap.aguiabranca.domain.user;
 
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository {
+
+    User save(User user);
+
+    Optional<User> findById(Long id);
 
     Optional<User> findByEmail(String email);
+
+    void deleteAll();
 }

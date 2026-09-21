@@ -21,7 +21,7 @@ public record ProjectResponse(
                 project.getProgress(),
                 project.getBudget(),
                 project.getSpent(),
-                project.getIdea() == null ? null : project.getIdea().getId(),
+                project.getIdeaId(),
                 project.getCreatedAt());
     }
 }

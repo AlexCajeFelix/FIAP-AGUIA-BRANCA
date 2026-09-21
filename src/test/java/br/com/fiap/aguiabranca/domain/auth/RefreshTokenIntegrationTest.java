@@ -85,7 +85,10 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
     void shouldRejectExpiredRefresh() throws Exception {
         Tokens tokens = loginTokens("expirado@teste.dev", Role.LIDERANCA);
 
-        jdbcTemplate.update("UPDATE refresh_tokens SET expires_at = now() - interval '1 second'");
+        String hash = RefreshTokens.hash(tokens.refreshToken());
+        RefreshToken refreshToken = refreshTokens.findByTokenHashForUpdate(hash).orElseThrow();
+        refreshToken.expireAt(java.time.Instant.now().minusSeconds(1));
+        refreshTokens.save(refreshToken);
 
         mockMvc.perform(post("/auth/refresh")
                 .contentType("application/json")
