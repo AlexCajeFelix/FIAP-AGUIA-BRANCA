@@ -19,6 +19,12 @@
 	<properties>
 		<java.version>21</java.version>
 		<jjwt.version>0.12.6</jjwt.version>
+		<!-- O Testcontainers gerenciado pelo Boot 3.3.5 (1.19.8) fixa a API Docker 1.32
+		     internamente, e o Docker Engine >= 29 recusa: "client version 1.32 is too old.
+		     Minimum supported API version is 1.40". Com 1.19.8 o teste nao falha — ele e
+		     PULADO pelo @EnabledIf, o que fazia o build passar verde sem ter rodado. -->
+		<testcontainers.version>1.21.4</testcontainers.version>
+		<build-helper.version>3.6.0</build-helper.version>
 	</properties>
 
 	<dependencies>
@@ -100,6 +106,30 @@
 					</compilerArgs>
 				</configuration>
 			</plugin>
+			<!-- A geracao do OpenAPI sobe a aplicacao de verdade. Fixar 8080/9001 faz o build
+			     quebrar em qualquer maquina que ja tenha algo nessas portas — o runner da CI esta
+			     limpo, a maquina do dev nao. Aqui o Maven reserva duas portas livres no momento
+			     do build e injeta nas duas pontas. -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>${build-helper.version}</version>
+				<executions>
+					<execution>
+						<id>reserve-openapi-ports</id>
+						<phase>pre-integration-test</phase>
+						<goals>
+							<goal>reserve-network-port</goal>
+						</goals>
+						<configuration>
+							<portNames>
+								<portName>openapi.http.port</portName>
+								<portName>openapi.jmx.port</portName>
+							</portNames>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -111,6 +141,8 @@
 						</goals>
 						<configuration>
 							<useTestClasspath>true</useTestClasspath>
+							<jmxPort>${openapi.jmx.port}</jmxPort>
+							<jvmArguments>-Dserver.port=${openapi.http.port}</jvmArguments>
 							<profiles>
 								<profile>openapi</profile>
 							</profiles>
@@ -124,6 +156,9 @@
 						<goals>
 							<goal>stop</goal>
 						</goals>
+						<configuration>
+							<jmxPort>${openapi.jmx.port}</jmxPort>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
@@ -141,7 +176,7 @@
 					</execution>
 				</executions>
 				<configuration>
-					<apiDocsUrl>http://localhost:8080/v3/api-docs</apiDocsUrl>
+					<apiDocsUrl>http://localhost:${openapi.http.port}/v3/api-docs</apiDocsUrl>
 					<outputFileName>openapi.json</outputFileName>
 					<outputDir>${project.build.directory}</outputDir>
 				</configuration>
