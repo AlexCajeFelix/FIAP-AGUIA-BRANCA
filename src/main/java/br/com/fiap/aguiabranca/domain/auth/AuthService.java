@@ -63,7 +63,8 @@ public class AuthService {
         }
 
         current.revoke(now);
-        User user = current.getUser();
+        User user = users.findById(current.getUserId())
+                .orElseThrow(InvalidRefreshTokenException::new);
         UUID familyId = current.getFamilyId();
         return issuePair(user, familyId);
     }

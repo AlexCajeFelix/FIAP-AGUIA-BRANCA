@@ -17,7 +17,7 @@ public record IdeaResponse(
                 idea.getTitle(),
                 idea.getDescription(),
                 idea.getStatus(),
-                idea.getOwner() == null ? null : idea.getOwner().getId(),
+                idea.getOwnerId(),
                 idea.getCreatedAt(),
                 idea.getReviewedAt());
     }

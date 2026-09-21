@@ -22,7 +22,7 @@ public class IdeaService {
 
     @Transactional
     public Idea submit(IdeaRequest request, AuthenticatedUser actor) {
-        User owner = users.getReferenceById(actor.id());
+        User owner = users.findById(actor.id()).orElseThrow(() -> notFound(actor.id()));
         return ideas.save(new Idea(request.title(), request.description(), owner));
     }
 
@@ -55,7 +55,8 @@ public class IdeaService {
     @Transactional
     public Idea review(Long id, IdeaReviewRequest request, AuthenticatedUser actor) {
         Idea idea = ideas.findById(id).orElseThrow(() -> notFound(id));
-        idea.review(request.status(), users.getReferenceById(actor.id()));
+        User reviewer = users.findById(actor.id()).orElseThrow(() -> notFound(actor.id()));
+        idea.review(request.status(), reviewer);
         return idea;
     }
 
