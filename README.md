@@ -67,6 +67,30 @@ No Windows:
 Os testes de integracao usam repositorios em memoria no profile `integration`, entao o build local
 nao depende de Docker. A aplicacao real usa MongoDB.
 
+O `verify` tambem roda o gate de cobertura. Ele reprova o build abaixo do minimo acordado:
+
+| Metrica | Minimo | Onde muda |
+|---|---:|---|
+| Linha | 85% | `jacoco.min.line` no `pom.xml` |
+| Ramo | 55% | `jacoco.min.branch` no `pom.xml` |
+
+Se o build morrer assim, e o gate falando, nao e flake:
+
+```text
+[WARNING] Rule violated for bundle fiap-aguia-branca:
+          lines covered ratio is 0.79, but expected minimum is 0.85
+```
+
+O relatorio fica em `target/site/jacoco/index.html`; abra e procure as linhas vermelhas do que voce
+mexeu. Na CI ele sai como artefato `cobertura-jacoco`, e o percentual aparece no resumo do run sem
+precisar baixar nada.
+
+Os dois numeros foram fixados um pouco abaixo do medido, para pegar regressao sem obrigar cada PR a
+subir a barra. Subiu a cobertura de verdade? Suba o minimo junto, no mesmo PR: e uma linha.
+
+Fora da contagem ficam a classe `main`, `*Config`, `*Properties` e os DTOs: nenhum tem ramo de
+decisao, e incluir so infla o percentual sem dizer nada sobre risco.
+
 ## Rotas
 
 | Metodo | Rota | Quem pode |
