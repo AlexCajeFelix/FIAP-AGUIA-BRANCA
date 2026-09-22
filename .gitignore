@@ -49,3 +49,8 @@ Thumbs.db
 *.log
 logs/
 tmp/
+
+# O *.jar acima e para o build do backend, mas ele tambem pegava o wrapper do app Android —
+# e wrapper sem o jar nao roda em clone novo, que e justamente o que o wrapper existe para
+# garantir. A excecao e explicita para o arquivo, nao para a pasta.
+!app-android/gradle/wrapper/gradle-wrapper.jar
