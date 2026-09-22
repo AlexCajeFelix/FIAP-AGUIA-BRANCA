@@ -65,7 +65,10 @@ if [ "${1:-}" = "--app" ]; then
         erro "Projeto Android nao encontrado em $APP_ANDROID. Use APP_ANDROID=/caminho ./run.sh --app"
     else
         azul "Instalando o app Android..."
-        (cd "$APP_ANDROID" && ./gradlew :app:installDebug -q)
+        # O Gradle acha o SDK por local.properties ou por ANDROID_HOME. O arquivo e ignorado
+        # pelo git de proposito (caminho e de cada maquina), entao a variavel e o caminho que
+        # funciona em clone novo, sem ninguem precisar criar nada a mao.
+        (cd "$APP_ANDROID" && ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}" ./gradlew :app:installDebug -q)
         "$ADB" shell am start -n com.example.aguia_azul/.MainActivity > /dev/null
         azul "App aberto no emulador."
     fi
