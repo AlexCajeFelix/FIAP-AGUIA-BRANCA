@@ -25,12 +25,12 @@ jobs:
   # O nome "build" e o status check exigido pela branch protection da main.
   build:
     name: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configura JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: temurin
@@ -59,7 +59,7 @@ jobs:
           EOF
 
       - name: Publica o jar
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-jar
           path: target/fiap-aguia-branca-*.jar
@@ -67,7 +67,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publica contrato OpenAPI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openapi
           path: target/openapi.json
@@ -76,7 +76,7 @@ jobs:
 
       - name: Publica relatorio de testes
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: relatorio-testes
           path: |
@@ -88,7 +88,7 @@ jobs:
   docker-image:
     name: docker-image
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -96,7 +96,7 @@ jobs:
       image: ${{ steps.tags.outputs.image }}
       version: ${{ steps.tags.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Define nome e tags da imagem
         id: tags
@@ -115,11 +115,11 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Login no GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -128,7 +128,7 @@ jobs:
       # Em PR so builda (prova que o Dockerfile funciona); na main publica no registry.
       - name: Build e push da imagem
         id: push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
@@ -155,7 +155,7 @@ jobs:
     name: deploy-staging
     needs: docker-image
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging
     concurrency:
       group: deploy-staging
@@ -168,10 +168,10 @@ jobs:
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Login no GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -207,7 +207,7 @@ jobs:
 
       - name: Publica evidencias
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: evidencias-staging
           path: evidencias/
@@ -221,7 +221,7 @@ jobs:
     name: deploy-production
     needs: [docker-image, deploy-staging]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # O environment production exige aprovacao manual (Settings -> Environments): o job fica
     # esperando ate alguem com permissao aprovar o deploy.
     environment: production
@@ -236,10 +236,10 @@ jobs:
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Login no GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -276,7 +276,7 @@ jobs:
 
       - name: Publica evidencias
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: evidencias-production
           path: evidencias/
