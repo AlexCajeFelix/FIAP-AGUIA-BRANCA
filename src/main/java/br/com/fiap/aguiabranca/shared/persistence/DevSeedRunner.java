@@ -22,15 +22,16 @@ import org.springframework.stereotype.Component;
 /**
  * Massa de desenvolvimento: um usuario por perfil e dados de exemplo para as telas.
  *
- * Substitui o V9000__seed_dev_data.sql. O @Profile("dev") faz o mesmo papel que o location
- * separado fazia no Flyway: fora de dev estas contas nao existem por construcao, e nao porque
- * alguem lembrou de apagar a linha depois.
+ * Substitui o V9000__seed_dev_data.sql. O @Profile faz o mesmo papel que o location separado
+ * fazia no Flyway: fora de dev e staging estas contas nao existem por construcao, e nao porque
+ * alguem lembrou de apagar a linha depois. Staging entra para o QA e o smoke test do pipeline
+ * terem com quem logar; producao (profile prod) continua sem nenhuma conta conhecida.
  *
  * Senhas: operador123 / gestor123 / lideranca123 (BCrypt custo 10, os mesmos hashes da V9000 —
  * gerar de novo a cada boot mudaria o hash e nao adianta nada aqui).
  */
 @Component
-@Profile("dev")
+@Profile({ "dev", "staging" })
 // Depois do MongoSchemaInitializer: inserir antes dos indices existirem deixaria o unico de
 // email para tras e aceitaria duplicata na primeira subida.
 @Order(100)

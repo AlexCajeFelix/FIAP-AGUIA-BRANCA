@@ -1,52 +1,38 @@
-# FIAP-AGUIA-BRANCA — Hub de Inovação
+# Projeto - Cidades ESG Inteligentes
+
+## FIAP-AGUIA-BRANCA — Hub de Inovação
+
+[![CI/CD](https://github.com/AlexCajeFelix/FIAP-AGUIA-BRANCA/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/AlexCajeFelix/FIAP-AGUIA-BRANCA/actions/workflows/ci-cd.yml)
 
 Backend do **Hub de Inovação e Gestão de Projetos Corporativos** da Águia Branca: a API que
 recebe ideias da operação, leva cada uma pela decisão do gestor e acompanha as que viram
 projeto — com o app Android consumindo tudo isso.
 
-> **Status:** de pé e integrado. As quatro fatias (`auth`, `idea`, `project`, `strategy`) têm
-> controller, service, repository e DTOs; a persistência é MongoDB; o app Android consome esta
-> API (sem mocks). O backlog de endurecimento e operação está nas [issues](../../issues) e no
+> **Status:** de pé e integrado, com ciclo DevOps completo: cada push na `main` passa por build,
+> 185 testes automatizados, imagem Docker publicada no GHCR, deploy em **staging**, smoke test,
+> aprovação e deploy em **produção**. O backlog está nas [issues](../../issues) e no
 > [board](https://github.com/users/AlexCajeFelix/projects/4).
 
 ```
  operador ──▶ ideia ──▶ gestor decide ──▶ projeto ──▶ métricas ──▶ painel da liderança
 ```
 
----
-
-## O que dá para fazer
-
-**Operador**
-- Envia ideia ou relata problema da operação.
-- Acompanha o que enviou e em que pé está cada uma (rascunho, em análise, aprovada, recusada).
-- Lê as diretrizes estratégicas que a liderança publicou.
-- Pede ajuda da IA para transformar o rascunho em um texto claro, antes de enviar.
-
-**Gestor**
-- Recebe a fila de ideias esperando decisão e aprova ou recusa — sem poder revisar duas vezes.
-- Promove ideia aprovada a projeto, definindo o orçamento.
-- Atualiza progresso e gasto; cada alteração vira registro de auditoria.
-- Vê os projetos em execução e o histórico de cada métrica.
-
-**Liderança**
-- Painel com orçamento total, gasto, projetos por status e distribuição por data.
-- Publica, edita e remove diretrizes estratégicas (remoção é *soft delete*: some da leitura, fica no banco).
-- Enxerga tudo que gestor e operador enxergam.
-
-**Transversal**
-- Login com JWT (30 min) e refresh opaco rotacionado (7 dias); reúso de refresh derruba a sessão inteira.
-- Rate limit no login, por IP e por e-mail.
-- Erro sempre em RFC 7807, com `X-Request-Id` ligando resposta e log.
-- Contrato OpenAPI publicado pelo CI a cada build.
+**Entrega DevOps:** [Como executar com Docker](#como-executar-localmente-com-docker) ·
+[Pipeline CI/CD](#pipeline-cicd) · [Containerização](#containerização) ·
+[Prints do funcionamento](#prints-do-funcionamento) · [Tecnologias](#tecnologias-utilizadas) ·
+[Checklist](#checklist-de-entrega) · documentação em PDF em [`docs/`](docs)
 
 ---
 
-## Rodando local
+## Como executar localmente com Docker
 
-Precisa só de **Docker**. Tudo (banco e API) sobe com um comando:
+Precisa só de **Docker** (com o plugin `docker compose`). Não precisa de JDK nem de Maven: o
+build acontece dentro da imagem.
 
 ```bash
+git clone https://github.com/AlexCajeFelix/FIAP-AGUIA-BRANCA.git
+cd FIAP-AGUIA-BRANCA
+
 ./run.sh                 # cria o .env, sobe mongo + API e imprime as credenciais
 ./run.sh --app           # o mesmo, e ainda instala o app no emulador conectado
 ./run.sh --down          # derruba tudo
@@ -58,13 +44,36 @@ Na mão, se preferir:
 cp .env.example .env             # ajuste APP_PORT se a 8080 estiver ocupada
 docker compose up -d --build     # mongo:7 + a API, com o seed de desenvolvimento
 
-curl localhost:${APP_PORT:-8080}/actuator/health
+curl localhost:${APP_PORT:-8080}/actuator/health    # {"status":"UP"}
+# Swagger: http://localhost:8080/swagger-ui.html
 ```
 
 O profile `dev` está ligado por padrão no compose, então o banco já sobe com usuários, ideias,
 projetos e diretrizes de exemplo — dá para entrar no app sem cadastrar nada.
 
-Para desenvolver com recarga rápida, sobe só o banco e roda a API pela JVM local:
+### Subindo staging e produção na própria máquina
+
+Os mesmos scripts que o pipeline usa reproduzem os dois ambientes localmente, lado a lado, cada um
+com containers, rede e volume próprios:
+
+```bash
+docker build -t aguiabranca-api:local .
+
+JWT_SECRET=$(openssl rand -base64 48) scripts/deploy.sh staging    aguiabranca-api:local  # :8082
+JWT_SECRET=$(openssl rand -base64 48) scripts/deploy.sh production aguiabranca-api:local  # :8083
+
+scripts/smoke-test.sh http://localhost:8082 staging
+scripts/smoke-test.sh http://localhost:8083 production
+
+scripts/deploy.sh staging --down && scripts/deploy.sh production --down
+```
+
+Ou, com a imagem que o pipeline publicou: `scripts/deploy.sh production
+ghcr.io/alexcajefelix/fiap-aguia-branca:production`.
+
+### Desenvolvendo pela JVM
+
+Para recarga rápida, sobe só o banco e roda a API pela JVM local:
 
 ```bash
 docker compose up -d db          # mongo:7 em replica set de um no
@@ -102,7 +111,9 @@ está versionado em `application-dev.yml`, então qualquer pessoa que leia o rep
 forjar um token de `LIDERANCA`. Por isso a aplicação recusa o boot se esse valor aparecer com
 qualquer profile diferente de `dev`.
 
-Fora de dev, a variável vem do ambiente — `.env.example` lista o que preencher.
+Fora de dev, a variável vem do ambiente — `.env.example` (local) e `deploy/*.env.example`
+(staging e produção) listam o que preencher; no pipeline, ela vem dos secrets de cada
+GitHub Environment.
 
 Não há migration: no MongoDB o que precisa existir são índices e validadores, e o
 `MongoSchemaInitializer` cria os dois de forma idempotente a cada boot. Os validadores
@@ -110,8 +121,9 @@ Não há migration: no MongoDB o que precisa existir são índices e validadores
 progresso entre 0 e 100 — e os campos de dinheiro exigem `bsonType: decimal`, que é o alarme
 para o dia em que alguém quebrar a conversão e o valor voltar a ser gravado como texto.
 
-O seed de desenvolvimento é o `DevSeedRunner` e **só existe com o profile `dev`** — em produção
-essas contas não nascem por construção. Usuários criados pelo seed, um por perfil:
+O seed de desenvolvimento é o `DevSeedRunner` e **só existe com os profiles `dev` e `staging`** —
+em produção (profile `prod`) essas contas não nascem por construção, e o smoke test de produção
+confere isso a cada deploy. Usuários criados pelo seed, um por perfil:
 
 | E-mail | Senha | Perfil |
 |---|---|---|
@@ -129,6 +141,229 @@ access expirar, `POST /auth/refresh` com o refresh atual troca o par. Cada refre
 token usado; reusar um já rotacionado revoga a família inteira daquele login (sessão
 comprometida) e responde `type` `https://aguiabranca.fiap.br/errors/refresh-invalido`.
 `POST /auth/logout` invalida o refresh corrente.
+
+---
+
+## Pipeline CI/CD
+
+**Ferramenta:** GitHub Actions, em um único workflow:
+[`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml). As imagens vão para o **GitHub
+Container Registry** (`ghcr.io/alexcajefelix/fiap-aguia-branca`) e os deploys ficam registrados
+nos **GitHub Environments** `staging` e `production`
+([histórico de deploys](../../deployments)).
+
+```mermaid
+flowchart LR
+    G["push na main<br/>ou PR"] --> B["build<br/>mvnw verify<br/>185 testes + OpenAPI"]
+    B --> D["docker-image<br/>build multi-stage<br/>push sha-xxxxxxx no GHCR"]
+    D --> S["deploy-staging<br/>compose + override staging<br/>smoke test (15 checks)"]
+    S --> A{{"aprovação<br/>manual"}}
+    A --> P["deploy-production<br/>compose + override prod<br/>smoke test (10 checks)"]
+    S -. "promove :staging" .-> R[("GHCR")]
+    P -. "promove :production / :latest" .-> R
+```
+
+| Gatilho | O que roda |
+|---|---|
+| Pull request | `build` + `docker-image` (a imagem é construída, mas não publicada) |
+| Push na `main` | o fluxo inteiro, até produção |
+| `workflow_dispatch` | o mesmo da `main`, disparado em *Actions → CI/CD → Run workflow* |
+
+### Etapas
+
+| Job | O que faz | Sai dele |
+|---|---|---|
+| **build** | JDK 21 com cache do Maven; `./mvnw -B verify` compila, roda os testes unitários e de integração (MongoDB real via Testcontainers) e sobe a aplicação para gerar o contrato OpenAPI | jar, `openapi.json`, relatório de testes e tabela de resultado no resumo do run |
+| **docker-image** | Buildx com cache do GitHub Actions; tag `sha-<commit>` (e `main`); push no GHCR só fora de PR | imagem + digest no resumo do run |
+| **deploy-staging** | `scripts/deploy.sh staging <imagem>` sobe Mongo + API com o override de staging e espera os healthchecks; `scripts/smoke-test.sh` percorre login → ideia → aprovação → projeto → métricas (transação) → painel; promove a imagem para `:staging` | print do Swagger, `health`, logs dos containers (artefato `evidencias-staging`) |
+| **deploy-production** | Espera aprovação manual no environment `production`; mesmo deploy com o override de produção; o smoke test prova que as contas de dev **não** existem ali; promove para `:production` e `:latest` | artefato `evidencias-production` |
+
+### Como o deploy funciona
+
+- **Build once, deploy many.** A imagem é construída uma única vez, com a tag do commit. Staging
+  e produção rodam o mesmo digest; "promover" é só pôr outra tag no mesmo digest
+  (`docker buildx imagetools create`), sem rebuild.
+- **Um compose, três ambientes.** `docker-compose.yml` é a base (e o ambiente local);
+  `docker-compose.staging.yml` e `docker-compose.prod.yml` sobrepõem o que muda. Cada ambiente
+  sobe com nome de projeto próprio (`aguiabranca-staging`, `aguiabranca-production`), então
+  containers, redes e volumes não se misturam.
+- **Portão de qualidade.** `deploy.sh` usa `docker compose up --wait`: só devolve quando os
+  healthchecks de banco e API ficam verdes. O smoke test confere ambiente e versão no contrato
+  OpenAPI (`x-environment` e `info.version`) — se o deploy subiu a imagem errada, falha. Qualquer
+  falha em staging impede produção.
+- **Segredos fora do código.** `JWT_SECRET` (diferente em cada ambiente) e `GEMINI_API_KEY` são
+  secrets dos GitHub Environments. O compose de staging/produção não tem default para o segredo:
+  sem ele, o deploy para antes de subir qualquer container.
+- **Produção protegida.** O environment `production` exige revisor e só aceita deploy a partir
+  da `main`; a `main` só recebe código por PR com o check `build` verde e uma aprovação.
+- **Onde os ambientes rodam.** No runner do GitHub Actions, que funciona como host Docker
+  descartável: o ambiente é criado, validado, evidenciado (print, health, logs) e destruído ao
+  fim do job. O que fica é a imagem promovida no GHCR — `scripts/deploy.sh` sobe essa mesma
+  imagem em qualquer servidor com Docker.
+
+---
+
+## Containerização
+
+### Dockerfile
+
+```dockerfile
+# ---------- Estagio 1: build ----------
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /app
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw
+RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q dependency:go-offline
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q clean package -DskipTests \
+    && cp target/*.jar app.jar \
+    && java -Djarmode=layertools -jar app.jar extract --destination extracted
+
+# ---------- Estagio 2: runtime ----------
+FROM eclipse-temurin:21-jre-alpine AS runner
+ARG APP_VERSION=local
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.title="fiap-aguia-branca" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}"   # (resumido)
+WORKDIR /app
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+    && mkdir -p /app/logs && chown appuser:appgroup /app/logs
+COPY --from=builder --chown=appuser:appgroup /app/extracted/dependencies/ ./
+COPY --from=builder --chown=appuser:appgroup /app/extracted/spring-boot-loader/ ./
+COPY --from=builder --chown=appuser:appgroup /app/extracted/snapshot-dependencies/ ./
+COPY --from=builder --chown=appuser:appgroup /app/extracted/application/ ./
+USER appuser
+ENV APP_VERSION=${APP_VERSION} SERVER_PORT=8080 \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=5 \
+    CMD wget -qO- "http://127.0.0.1:${SERVER_PORT}/actuator/health" | grep -q '"UP"' || exit 1
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
+```
+
+O arquivo completo, comentado, está em [`Dockerfile`](Dockerfile).
+
+| Estratégia | Por quê |
+|---|---|
+| **Multi-stage** (JDK no build, JRE no runtime) | a imagem final não carrega compilador nem Maven: 364 MB, contra 553 MB só da imagem base com JDK |
+| `pom.xml` copiado antes de `src/` + cache mount do `~/.m2` | mudar só código não baixa as dependências de novo |
+| **Jar em camadas** (`layertools`) | as dependências (40 MB) ficam numa camada estável; um commit novo muda só a camada da aplicação (< 1 MB) |
+| Usuário **sem privilégio** (`appuser`) | um RCE na aplicação não vira root no container |
+| `HEALTHCHECK` no `/actuator/health` | o compose (`depends_on`, `--wait`) e o pipeline sabem quando a API está realmente pronta |
+| `MaxRAMPercentage=75` | a JVM respeita o limite de memória do container em vez da RAM do host |
+| `exec java` (JVM como PID 1) | recebe o `SIGTERM` do `docker stop` e faz shutdown gracioso |
+| `.dockerignore` | `.env`, `.git` e o app Android ficam fora do contexto de build — segredo nunca vira camada |
+| Labels OCI com versão e commit | `docker inspect` diz de qual commit a imagem saiu |
+
+### Orquestração (Docker Compose)
+
+| Recurso | Como é usado |
+|---|---|
+| **Serviços** | `db` (MongoDB 7 em replica set de um nó — necessário para transação) e `app` (API) |
+| **Redes** | `backend` (API ↔ banco) e `frontend` (porta publicada e saída para a internet). Em staging e produção a `backend` é `internal: true`: o banco não alcança a internet nem é alcançado de fora |
+| **Volumes** | `mongo_data` (dados do banco) e `app_logs` (log em arquivo da API, sobrevive à recriação do container) |
+| **Variáveis de ambiente** | `.env` no local, `deploy/<ambiente>.env` em deploy manual, secrets do GitHub no pipeline |
+| **Healthchecks e dependência** | a API só sobe depois do `db` ficar *healthy*; o healthcheck do `db` inicializa o replica set |
+
+| | Local (`docker-compose.yml`) | Staging (`+ docker-compose.staging.yml`) | Produção (`+ docker-compose.prod.yml`) |
+|---|---|---|---|
+| Imagem | build local | imagem do GHCR | a mesma imagem que passou em staging |
+| Profile Spring | `dev` | `staging` | `prod` |
+| Porta da API | 8080 | 8082 | 8083 |
+| Massa de dados | seed de dev | seed de demonstração (para QA e smoke test) | nenhuma |
+| Mongo exposto no host | sim (27017) | não | não |
+| Rede `backend` interna | não | sim | sim |
+| `JWT_SECRET` | default de dev | secret do environment (obrigatório) | secret do environment (obrigatório) |
+| Restart / limites | `unless-stopped` | 768 MB | `always`, 1 CPU, 1 GB, rotação de log |
+
+---
+
+## Prints do funcionamento
+
+As evidências completas estão no PDF em [`docs/`](docs) e nas imagens de
+[`docs/evidencias/`](docs/evidencias).
+
+- Execuções do pipeline: [Actions → CI/CD](../../actions/workflows/ci-cd.yml)
+- Deploys por ambiente: [Deployments](../../deployments) (staging e production)
+- Imagens publicadas: [Packages](https://github.com/AlexCajeFelix?tab=packages&repo_name=FIAP-AGUIA-BRANCA)
+
+**Staging no ar** — Swagger mostrando ambiente e versão implantada:
+
+![Swagger em staging](docs/evidencias/local-staging-swagger.png)
+
+**Produção no ar** — a conta de demonstração é recusada (401), porque produção não tem seed:
+
+![Login recusado em produção](docs/evidencias/local-production-login.png)
+
+**Smoke tests** dos dois ambientes:
+
+![Smoke tests](docs/evidencias/local-smoke-tests.png)
+
+---
+
+## Tecnologias utilizadas
+
+| Camada | Stack |
+|---|---|
+| Linguagem / runtime | Java 21 (Eclipse Temurin) |
+| Framework | Spring Boot 3.3.5 — Web, Data MongoDB, Security, Validation, Actuator |
+| Banco | MongoDB 7 (replica set de um nó) |
+| Segurança | JWT HS256 (jjwt 0.12) + refresh opaco rotacionado, rate limit com Bucket4j |
+| Contrato | springdoc-openapi 2.6 (Swagger UI + OpenAPI 3) |
+| Build | Maven 3.9 (wrapper) |
+| Testes | JUnit 5, Spring Boot Test, MockMvc, Testcontainers (MongoDB real) |
+| Containerização | Docker (BuildKit, multi-stage), Docker Compose v2 |
+| CI/CD | GitHub Actions, GitHub Container Registry, GitHub Environments |
+| Scripts de deploy | Bash, curl, jq |
+| App cliente | Android — Kotlin + Jetpack Compose, Retrofit/OkHttp |
+| IA (opcional) | Google Gemini, chamado só pelo backend |
+
+---
+
+## Checklist de entrega
+
+| Item | OK |
+|---|---|
+| Projeto compactado em .ZIP com estrutura organizada | ✅ |
+| Dockerfile funcional | ✅ |
+| docker-compose.yml ou arquivos Kubernetes | ✅ |
+| Pipeline com etapas de build, teste e deploy | ✅ |
+| README.md com instruções e prints | ✅ |
+| Documentação técnica com evidências (PDF ou PPT) | ✅ |
+| Deploy realizado nos ambientes staging e produção | ✅ |
+
+---
+
+## O que dá para fazer
+
+**Operador**
+- Envia ideia ou relata problema da operação.
+- Acompanha o que enviou e em que pé está cada uma (rascunho, em análise, aprovada, recusada).
+- Lê as diretrizes estratégicas que a liderança publicou.
+- Pede ajuda da IA para transformar o rascunho em um texto claro, antes de enviar.
+
+**Gestor**
+- Recebe a fila de ideias esperando decisão e aprova ou recusa — sem poder revisar duas vezes.
+- Promove ideia aprovada a projeto, definindo o orçamento.
+- Atualiza progresso e gasto; cada alteração vira registro de auditoria.
+- Vê os projetos em execução e o histórico de cada métrica.
+
+**Liderança**
+- Painel com orçamento total, gasto, projetos por status e distribuição por data.
+- Publica, edita e remove diretrizes estratégicas (remoção é *soft delete*: some da leitura, fica no banco).
+- Enxerga tudo que gestor e operador enxergam.
+
+**Transversal**
+- Login com JWT (30 min) e refresh opaco rotacionado (7 dias); reúso de refresh derruba a sessão inteira.
+- Rate limit no login, por IP e por e-mail.
+- Erro sempre em RFC 7807, com `X-Request-Id` ligando resposta e log.
+- Contrato OpenAPI publicado pelo CI a cada build.
+
+---
+
+---
 
 ## Rotas
 
@@ -436,7 +671,7 @@ O campo estável para o cliente decidir comportamento é o **`type`**. `title` �
 ./mvnw verify -Dopenapi.port=8099    # se a 8080 estiver ocupada
 ```
 
-**181 testes.** Precisam de Docker: o MongoDB sobe por Testcontainers, um container por JVM.
+**185 testes.** Precisam de Docker: o MongoDB sobe por Testcontainers, um container por JVM.
 Não há banco embarcado de mentira — a versão anterior caía para H2 quando faltava Docker, e o
 efeito prático era build verde sem banco nenhum.
 
@@ -447,7 +682,8 @@ efeito prático era build verde sem banco nenhum.
 | Integração `@SpringBootTest` | fluxo completo por MockMvc, com Mongo de verdade |
 | Matriz de autorização | **toda rota do Spring MVC precisa estar declarada na matriz** — rota nova sem permissão declarada quebra o build |
 | Plano do dashboard | 100k projetos, exige COLLSCAN e menos de 200 ms |
-| Isolamento do seed | prova que as contas de desenvolvimento não existem fora do profile `dev` |
+| Isolamento do seed | prova que as contas de desenvolvimento não existem fora de `dev`/`staging` |
+| Profiles de deploy | `staging` carrega a massa de demonstração; `prod` não tem conta nenhuma; o contrato diz o ambiente |
 
 ---
 
@@ -505,17 +741,30 @@ src/main/java/br/com/fiap/aguiabranca/
     ├── persistence/  id sequencial, conversões, índices e validadores, seed de dev
     └── (erros RFC 7807, correlation id, OpenAPI)
 
-app-android/          app Kotlin + Compose que consome esta API
-compose.yaml          mongo + API
-run.sh                sobe tudo com um comando
+app-android/                 app Kotlin + Compose que consome esta API
+Dockerfile                   imagem multi-stage da API
+docker-compose.yml           mongo + API (base e ambiente local)
+docker-compose.staging.yml   override de staging
+docker-compose.prod.yml      override de producao
+deploy/*.env.example         variaveis de cada ambiente para deploy manual
+scripts/deploy.sh            deploy de uma imagem em staging ou producao
+scripts/smoke-test.sh        validacao pos-deploy
+.github/workflows/ci-cd.yml  pipeline: build, testes, imagem, staging, producao
+docs/                        documentacao em PDF e evidencias
+run.sh                       sobe tudo com um comando
 ```
 
 ---
 
 ## Índice
 
+- [Como executar localmente com Docker](#como-executar-localmente-com-docker)
+- [Pipeline CI/CD](#pipeline-cicd)
+- [Containerização](#containerização)
+- [Prints do funcionamento](#prints-do-funcionamento)
+- [Tecnologias utilizadas](#tecnologias-utilizadas)
+- [Checklist de entrega](#checklist-de-entrega)
 - [O que dá para fazer](#o-que-dá-para-fazer)
-- [Rodando local](#rodando-local)
 - [Rotas](#rotas)
 - [Arquitetura](#arquitetura)
 - [Modelo de dados](#modelo-de-dados)
@@ -524,7 +773,6 @@ run.sh                sobe tudo com um comando
 - [Testes](#testes)
 - [O app Android](#o-app-android)
 - [Estrutura](#estrutura)
-- [Stack alvo](#stack-alvo)
 - [Arquitetura pretendida](#arquitetura-pretendida)
 - [Como trabalhar aqui](#como-trabalhar-aqui) ← **comece por aqui**
   - [O board](#o-board)
@@ -538,19 +786,6 @@ run.sh                sobe tudo com um comando
 - [Colinha de comandos](#colinha-de-comandos)
 
 ---
-
-## Stack alvo
-
-| Camada | Escolha |
-|---|---|
-| Runtime | Java 21 |
-| Framework | Spring Boot 3.3.5 |
-| Banco | MongoDB 7 (replica set de um nó) |
-| Auth | JWT HS256 (jjwt 0.12) + refresh opaco rotacionado |
-| Erros | RFC 7807 (`ProblemDetail`) |
-| Testes | JUnit 5 + Testcontainers |
-| App cliente | Android (Kotlin + Compose), consumindo esta API |
-| IA (opcional) | Gemini via backend, chave só no servidor |
 
 ## Arquitetura pretendida
 
@@ -850,6 +1085,8 @@ A `main` é protegida — **e a regra vale para admin também**, então não adi
 |---|---|
 | Push direto bloqueado | `git push origin main` é rejeitado com `GH006` |
 | PR obrigatório | Todo código entra por PR |
+| CI verde obrigatório | O job `build` do CI/CD precisa passar |
+| Aprovação obrigatória | 1 review aprovando, de alguém que não seja o autor |
 | Histórico linear | Merge commit rejeitado — **use `--squash`** |
 | Conversas resolvidas | Comentário pendente trava o merge |
 | Force push bloqueado | Não dá para reescrever o histórico |
@@ -870,14 +1107,8 @@ git reset --hard origin/main # limpa a main local
 git checkout minha-branch
 ```
 
-### Ainda não está ligado
-
-Duas regras ficaram de fora de propósito, e a issue [#5](../../issues/5) existe para fechá-las:
-
-- **CI verde obrigatório** — depende do workflow da [#3](../../issues/3) existir. Não dá para
-  exigir um check que nunca rodou: isso travaria todo PR permanentemente.
-- **Aprovação obrigatória** — hoje há um único colaborador com write, e o GitHub não deixa
-  ninguém aprovar o próprio PR. Sobe para 1 assim que entrar a segunda pessoa.
+O check **`build`** do pipeline CI/CD precisa estar verde (e a branch atualizada com a `main`) e
+o PR precisa de **uma aprovação** de outra pessoa do time antes do merge.
 
 ---
 

@@ -1,0 +1,287 @@
+name: CI/CD
+
+# PR:              build + testes + build da imagem (sem publicar)
+# push na main:    build + testes -> imagem no GHCR -> deploy staging -> deploy producao
+# workflow_dispatch: o mesmo fluxo da main, disparado na mao (Actions -> CI/CD -> Run workflow)
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# PR novo cancela o run anterior do mesmo PR. Na main nao: cancelar no meio deixaria um
+# ambiente pela metade.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # O nome "build" e o status check exigido pela branch protection da main.
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configura JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      # verify = compila, roda os testes unitarios e de integracao (MongoDB real via
+      # Testcontainers) e gera o contrato OpenAPI subindo a aplicacao.
+      - name: Build e testes automatizados
+        run: ./mvnw -B verify
+
+      - name: Resumo dos testes
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          t = f = e = s = 0
+          arquivos = glob.glob('target/surefire-reports/TEST-*.xml')
+          for p in arquivos:
+              r = ET.parse(p).getroot()
+              t += int(r.get('tests')); f += int(r.get('failures'))
+              e += int(r.get('errors')); s += int(r.get('skipped'))
+          print('### Testes automatizados\n')
+          print('| Classes | Testes | Falhas | Erros | Pulados |')
+          print('|---|---|---|---|---|')
+          print(f'| {len(arquivos)} | {t} | {f} | {e} | {s} |')
+          EOF
+
+      - name: Publica o jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-jar
+          path: target/fiap-aguia-branca-*.jar
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Publica contrato OpenAPI
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi
+          path: target/openapi.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publica relatorio de testes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorio-testes
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  docker-image:
+    name: docker-image
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.tags.outputs.image }}
+      version: ${{ steps.tags.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Define nome e tags da imagem
+        id: tags
+        run: |
+          # O GHCR so aceita nome em minusculas; o dono do repo tem maiusculas.
+          REPO="${GITHUB_REPOSITORY,,}"
+          VERSION="sha-${GITHUB_SHA::7}"
+          IMAGE="$REGISTRY/$REPO:$VERSION"
+          {
+            echo "version=$VERSION"
+            echo "image=$IMAGE"
+            echo "all<<EOF"
+            echo "$IMAGE"
+            # :main acompanha a ponta da main; staging/production sao promovidas no deploy.
+            [ "$GITHUB_REF" = refs/heads/main ] && echo "$REGISTRY/$REPO:main"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login no GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Em PR so builda (prova que o Dockerfile funciona); na main publica no registry.
+      - name: Build e push da imagem
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.all }}
+          build-args: |
+            APP_VERSION=${{ steps.tags.outputs.version }}
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo da imagem
+        run: |
+          {
+            echo "### Imagem Docker"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Imagem | \`${{ steps.tags.outputs.image }}\` |"
+            echo "| Digest | \`${{ steps.push.outputs.digest }}\` |"
+            echo "| Publicada | ${{ github.event_name != 'pull_request' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-staging:
+    name: deploy-staging
+    needs: docker-image
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    environment: staging
+    concurrency:
+      group: deploy-staging
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.docker-image.outputs.image }}
+      APP_VERSION: ${{ needs.docker-image.outputs.version }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy (docker compose + override de staging)
+        run: scripts/deploy.sh staging "$IMAGE"
+
+      - name: Smoke test
+        run: scripts/smoke-test.sh http://localhost:8082 staging "$APP_VERSION"
+
+      - name: Evidencia (print do Swagger em staging)
+        if: always()
+        run: |
+          mkdir -p evidencias
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+            --window-size=1440,1100 --virtual-time-budget=15000 \
+            --screenshot=evidencias/staging-swagger.png \
+            http://localhost:8082/swagger-ui/index.html || true
+          curl -s http://localhost:8082/actuator/health > evidencias/staging-health.json || true
+          curl -s http://localhost:8082/v3/api-docs | jq '{info, "x-environment"}' \
+            > evidencias/staging-openapi-info.json || true
+
+      # Mesma imagem, nova tag: o que chega em producao e o digest que passou aqui.
+      - name: Promove a imagem para a tag staging
+        run: docker buildx imagetools create -t "${IMAGE%:*}:staging" "$IMAGE"
+
+      - name: Coleta logs dos containers
+        if: always()
+        run: |
+          mkdir -p evidencias
+          docker compose -p aguiabranca-staging logs --no-color > evidencias/staging-containers.log 2>&1 || true
+
+      - name: Publica evidencias
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidencias-staging
+          path: evidencias/
+          retention-days: 30
+
+      - name: Derruba o ambiente
+        if: always()
+        run: scripts/deploy.sh staging --down
+
+  deploy-production:
+    name: deploy-production
+    needs: [docker-image, deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    # O environment production exige aprovacao manual (Settings -> Environments): o job fica
+    # esperando ate alguem com permissao aprovar o deploy.
+    environment: production
+    concurrency:
+      group: deploy-production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.docker-image.outputs.image }}
+      APP_VERSION: ${{ needs.docker-image.outputs.version }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy (docker compose + override de producao)
+        run: scripts/deploy.sh production "$IMAGE"
+
+      - name: Smoke test
+        run: scripts/smoke-test.sh http://localhost:8083 production "$APP_VERSION"
+
+      - name: Evidencia (print do Swagger em producao)
+        if: always()
+        run: |
+          mkdir -p evidencias
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+            --window-size=1440,1100 --virtual-time-budget=15000 \
+            --screenshot=evidencias/production-swagger.png \
+            http://localhost:8083/swagger-ui/index.html || true
+          curl -s http://localhost:8083/actuator/health > evidencias/production-health.json || true
+          curl -s http://localhost:8083/v3/api-docs | jq '{info, "x-environment"}' \
+            > evidencias/production-openapi-info.json || true
+
+      - name: Promove a imagem para production e latest
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE%:*}:production" -t "${IMAGE%:*}:latest" "$IMAGE"
+
+      - name: Coleta logs dos containers
+        if: always()
+        run: |
+          mkdir -p evidencias
+          docker compose -p aguiabranca-production logs --no-color > evidencias/production-containers.log 2>&1 || true
+
+      - name: Publica evidencias
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidencias-production
+          path: evidencias/
+          retention-days: 30
+
+      - name: Derruba o ambiente
+        if: always()
+        run: scripts/deploy.sh production --down

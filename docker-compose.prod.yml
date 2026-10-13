@@ -1,0 +1,39 @@
+# Override de PRODUCAO. Uso (o scripts/deploy.sh monta isto sozinho):
+#
+#   APP_IMAGE=ghcr.io/alexcajefelix/fiap-aguia-branca:sha-abc1234 \
+#   docker compose -p aguiabranca-production \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+#
+# A imagem e exatamente a que passou pelo staging (mesmo digest). Sem seed: em producao as
+# contas de desenvolvimento nao existem por construcao.
+
+services:
+  db:
+    ports: !reset []
+    restart: always
+    logging: &rotated-logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  app:
+    build: !reset null
+    image: ${APP_IMAGE:?defina APP_IMAGE com a imagem publicada no registry}
+    ports: !override
+      - "${APP_PORT:-8083}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      APP_ENVIRONMENT: production
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (secret do environment production no GitHub)}
+    restart: always
+    logging: *rotated-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+networks:
+  backend:
+    internal: true

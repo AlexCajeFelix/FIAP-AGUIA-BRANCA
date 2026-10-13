@@ -14,6 +14,6 @@
 /mvnw.cmd               @AlexCajeFelix
 /.mvn/                  @AlexCajeFelix
 /Dockerfile             @AlexCajeFelix
-/compose.yaml           @AlexCajeFelix
+/docker-compose*.yml    @AlexCajeFelix
 
 # Android nao tem regra aqui de proposito: o app vive fora deste repositorio.

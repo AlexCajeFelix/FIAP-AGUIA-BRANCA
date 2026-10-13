@@ -17,6 +17,12 @@ spring:
       auto-index-creation: false
 
 app:
+  # Qual ambiente e qual build estao respondendo. Aparecem no contrato OpenAPI (info.version e
+  # descricao), e e por eles que o smoke test do pipeline confere que o deploy subiu a imagem
+  # certa no ambiente certo.
+  environment: ${APP_ENVIRONMENT:local}
+  version: ${APP_VERSION:0.0.1}
+
   cors:
     # Vazio por default: nenhuma origem cross-origin passa sem configuracao explicita.
     # O cliente atual e o app Android, que nao e afetado por CORS — isto fica pronto e
