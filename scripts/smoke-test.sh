@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-#
-# Smoke test pos-deploy. Bate na API recem-publicada e falha (exit 1) se qualquer verificacao
-# nao passar — no pipeline, isso impede a promocao de staging para producao.
-#
-#   scripts/smoke-test.sh http://localhost:8082 staging    [versao-esperada]
-#   scripts/smoke-test.sh http://localhost:8083 production [versao-esperada]
-#
-# Em staging o roteiro percorre o fluxo de negocio inteiro com as contas de demonstracao
-# (login -> ideia -> aprovacao -> projeto -> metricas -> painel). Em producao, onde nao existe
-# conta conhecida, prova o contrario: que as contas de dev NAO entram.
-#
-# Se GITHUB_STEP_SUMMARY existir, o resultado vira uma tabela no resumo do job.
 
 set -uo pipefail
 
@@ -22,7 +10,7 @@ PASSOU=0
 FALHOU=0
 LINHAS=()
 
-registra() { # registra <ok|falha> <verificacao> <detalhe>
+registra() {
     if [ "$1" = ok ]; then
         PASSOU=$((PASSOU + 1)); printf '  \033[32mOK\033[0m    %s — %s\n' "$2" "$3"
         LINHAS+=("| ✅ | $2 | $3 |")
@@ -32,7 +20,6 @@ registra() { # registra <ok|falha> <verificacao> <detalhe>
     fi
 }
 
-# req <metodo> <rota> [token] [corpo] -> imprime "<status> <corpo>"
 req() {
     local args=(-s -o /tmp/smoke-body -w '%{http_code}' -X "$1" "$API$2" -H 'X-Request-Id: smoke-test')
     [ -n "${3:-}" ] && args+=(-H "Authorization: Bearer $3")
@@ -42,11 +29,11 @@ req() {
     printf '%s %s' "$status" "$(cat /tmp/smoke-body 2>/dev/null)"
 }
 
-confere() { # confere <obtido> <esperado> <verificacao> <detalhe-ok> <detalhe-falha>
+confere() {
     if [ "$1" = "$2" ]; then registra ok "$3" "$4"; else registra falha "$3" "$5"; fi
 }
 
-espera() { # espera <verificacao> <status-esperado> <metodo> <rota> [token] [corpo]
+espera() {
     local nome="$1" esperado="$2"; shift 2
     local resp status
     resp="$(req "$@")"; status="${resp%% *}"
@@ -60,7 +47,6 @@ espera() { # espera <verificacao> <status-esperado> <metodo> <rota> [token] [cor
 
 echo "Smoke test em $API ($AMBIENTE)"
 
-# 1. Saude e contrato
 espera "Health check" 200 GET /actuator/health
 confere "$(jq -r .status <<<"$CORPO" 2>/dev/null)" UP "MongoDB conectado" "status UP" "$CORPO"
 
@@ -75,7 +61,6 @@ fi
 
 espera "Swagger UI" 200 GET /swagger-ui/index.html
 
-# 2. Seguranca
 espera "Rota protegida sem token" 401 GET /ideas
 espera "Login com senha errada" 401 POST /auth/login "" \
     '{"email":"ninguem@aguiabranca.dev","password":"senha-errada"}'
@@ -84,7 +69,6 @@ CABECALHO="$(curl -s -D - -o /dev/null "$API/actuator/health" -H 'X-Request-Id: 
     | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')"
 confere "$CABECALHO" smoke-corr-id "Correlation ID" "X-Request-Id ecoado" "veio '$CABECALHO'"
 
-# 3. Fluxo por ambiente
 if [ "$AMBIENTE" = staging ]; then
     espera "Login do gestor (seed)" 200 POST /auth/login "" \
         '{"email":"gestor@aguiabranca.dev","password":"gestor123"}'
@@ -98,7 +82,6 @@ if [ "$AMBIENTE" = staging ]; then
     espera "Promove a projeto" 201 POST "/projects/from-idea/$IDEIA" "$TOKEN" '{"budget":150000.00}'
     PROJETO="$(jq -r .id <<<"$CORPO" 2>/dev/null)"
 
-    # Grava metrica + auditoria na mesma transacao: so passa com o replica set de pe.
     espera "Atualiza metricas (transacao)" 200 PATCH "/projects/$PROJETO/metrics" "$TOKEN" \
         '{"progress":40,"spent":52000.00}'
     espera "Painel da lideranca" 200 GET /projects/summary "$TOKEN"

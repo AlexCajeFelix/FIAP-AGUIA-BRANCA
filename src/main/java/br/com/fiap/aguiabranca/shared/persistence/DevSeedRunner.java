@@ -24,8 +24,7 @@ import org.springframework.stereotype.Component;
  *
  * Substitui o V9000__seed_dev_data.sql. O @Profile faz o mesmo papel que o location separado
  * fazia no Flyway: fora de dev e staging estas contas nao existem por construcao, e nao porque
- * alguem lembrou de apagar a linha depois. Staging entra para o QA e o smoke test do pipeline
- * terem com quem logar; producao (profile prod) continua sem nenhuma conta conhecida.
+ * alguem lembrou de apagar a linha depois.
  *
  * Senhas: operador123 / gestor123 / lideranca123 (BCrypt custo 10, os mesmos hashes da V9000 —
  * gerar de novo a cada boot mudaria o hash e nao adianta nada aqui).

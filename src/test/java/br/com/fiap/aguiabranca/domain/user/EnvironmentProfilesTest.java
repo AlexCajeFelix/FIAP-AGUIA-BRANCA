@@ -20,11 +20,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Os profiles que o pipeline de deploy liga: staging (com massa de demonstracao, para o smoke
- * test logar) e prod (sem conta nenhuma conhecida). Banco proprio por classe, pelo mesmo motivo
- * do DevSeedRunnerTest: o seed so age com a colecao de usuarios vazia.
- */
 class EnvironmentProfilesTest {
 
     @Nested
