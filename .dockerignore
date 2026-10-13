@@ -1,0 +1,16 @@
+# O contexto de build so precisa de pom, wrapper e src. O resto so deixaria o envio ao daemon
+# mais lento e, no caso do .env, colocaria segredo dentro de uma camada da imagem.
+.git
+.github
+.idea
+.vscode
+target
+app-android
+docs
+scripts
+deploy
+*.md
+.env
+.env.*
+docker-compose*.yml
+run.sh

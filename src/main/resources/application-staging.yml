@@ -1,0 +1,12 @@
+# Profile de staging. Mesma configuracao de producao — JWT_SECRET obrigatorio no ambiente, o
+# segredo de dev e recusado pelo JwtSecretGuard — com uma diferenca: o DevSeedRunner tambem roda
+# aqui, para o QA e o smoke test do pipeline terem contas conhecidas com quem logar.
+server:
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+app:
+  environment: ${APP_ENVIRONMENT:staging}

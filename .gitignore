@@ -49,3 +49,7 @@ Thumbs.db
 *.log
 logs/
 tmp/
+
+# --- Deploy ---
+# Segredos de cada ambiente (o pipeline usa os secrets do GitHub; isto e para deploy manual).
+deploy/*.env

@@ -23,7 +23,7 @@ fi
 
 if [ "${1:-}" = "--down" ]; then
     azul "Derrubando a stack..."
-    docker compose -f "$RAIZ/compose.yaml" down
+    docker compose -f "$RAIZ/docker-compose.yml" down
     exit 0
 fi
 
@@ -39,7 +39,7 @@ PORTA="${PORTA:-8080}"
 API="http://localhost:$PORTA"
 
 azul "Subindo MongoDB e API (o primeiro build baixa as dependencias e demora alguns minutos)..."
-docker compose -f "$RAIZ/compose.yaml" up -d --build
+docker compose -f "$RAIZ/docker-compose.yml" up -d --build
 
 azul "Esperando a API responder em $API ..."
 for _ in $(seq 1 60); do

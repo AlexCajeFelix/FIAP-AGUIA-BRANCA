@@ -1,14 +1,24 @@
+# Stack base: MongoDB + API. Sozinho, este arquivo e o ambiente de desenvolvimento local
+# (`docker compose up -d --build`). Staging e producao usam este mesmo arquivo com um override
+# por cima — docker-compose.staging.yml e docker-compose.prod.yml — e um nome de projeto
+# proprio (-p), que separa containers, volumes e redes de cada ambiente.
+
+name: aguiabranca
+
 services:
   db:
     image: mongo:7
-    container_name: aguiabranca-db
     # Replica set de um no so: nao e por disponibilidade, e porque transacao no Mongo exige
     # replica set. Sem isto o PATCH /projects/{id}/metrics falha ao abrir a transacao.
     command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
+      # Exposto so em dev, para rodar a API pela JVM local. Os overrides de staging e producao
+      # removem esta porta: la o banco so e alcancavel pela rede interna.
       - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
+    networks:
+      - backend
     healthcheck:
       # O proprio healthcheck inicia o replica set na primeira subida e vira ping depois.
       # Um container de init separado so para rodar rs.initiate seria mais uma peca para
@@ -26,19 +36,41 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: aguiabranca-app
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    image: ${APP_IMAGE:-aguiabranca-api:local}
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # "db" e o nome do servico, resolvido pelo DNS da rede backend.
       SPRING_DATA_MONGODB_URI: mongodb://db:27017/${MONGO_DB:-aguiabranca}?directConnection=true
       SERVER_PORT: 8080
       JWT_SECRET: ${JWT_SECRET:-segredo-de-dev-com-mais-de-32-bytes-para-hs256-autenticacao}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
+      APP_VERSION: ${APP_VERSION:-local}
+      # Log tambem em arquivo, no volume app_logs: sobrevive a recriacao do container.
+      LOGGING_FILE_NAME: /app/logs/aguiabranca.log
+    volumes:
+      - app_logs:/app/logs
+    networks:
+      - backend
+      - frontend
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
+networks:
+  # backend: API <-> banco. frontend: onde a API publica a porta e sai para a internet (Gemini).
+  # O banco fica so na backend; nada fora da stack fala com ele sem passar pela API.
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
 volumes:
   mongo_data:
+  app_logs:
