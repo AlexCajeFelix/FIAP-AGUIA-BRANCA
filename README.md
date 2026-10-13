@@ -282,24 +282,54 @@ O arquivo completo, comentado, está em [`Dockerfile`](Dockerfile).
 
 ## Prints do funcionamento
 
-As evidências completas estão no PDF em [`docs/`](docs) e nas imagens de
-[`docs/evidencias/`](docs/evidencias).
+Documentação completa com todas as evidências:
+[`docs/Documentacao-DevOps-Cidades-ESG-Inteligentes.pdf`](docs/Documentacao-DevOps-Cidades-ESG-Inteligentes.pdf).
+Imagens em [`docs/evidencias/`](docs/evidencias).
 
-- Execuções do pipeline: [Actions → CI/CD](../../actions/workflows/ci-cd.yml)
-- Deploys por ambiente: [Deployments](../../deployments) (staging e production)
-- Imagens publicadas: [Packages](https://github.com/AlexCajeFelix?tab=packages&repo_name=FIAP-AGUIA-BRANCA)
+- Execuções do pipeline: [Actions → CI/CD](../../actions/workflows/ci-cd.yml) — run de referência:
+  [#3 na `main`](https://github.com/AlexCajeFelix/FIAP-AGUIA-BRANCA/actions/runs/38476746517)
+- Deploys por ambiente: [Deployments](../../deployments) (staging e production; pede login no GitHub)
+- Imagens publicadas: `ghcr.io/alexcajefelix/fiap-aguia-branca` — tags `sha-1bde49c`, `main`, `staging`, `production`, `latest`, todas no mesmo digest
 
-**Staging no ar** — Swagger mostrando ambiente e versão implantada:
+### Pipeline rodando
 
-![Swagger em staging](docs/evidencias/local-staging-swagger.png)
+**Run na `main`**: build → imagem → staging → aprovação → produção, 5 min 13 s:
 
-**Produção no ar** — a conta de demonstração é recusada (401), porque produção não tem seed:
+![Run do pipeline na main](docs/evidencias/pipeline-run-main.png)
+
+**Portão de produção**: com staging verde, o deploy de produção espera a aprovação do revisor:
+
+![Aprovação de produção](docs/evidencias/pipeline-aprovacao-producao.png)
+
+**Build e testes**: 185 testes, 0 falhas:
+
+![Log do job build](docs/evidencias/pipeline-log-build.png)
+
+**Deploy em staging**: compose sobe redes, volumes e containers, smoke test 15/15, promoção para `:staging`:
+
+![Log do deploy de staging](docs/evidencias/pipeline-log-staging.png)
+
+**Deploy em produção**: mesma imagem, smoke test 10/10, promoção para `:production` e `:latest`:
+
+![Log do deploy de produção](docs/evidencias/pipeline-log-production.png)
+
+### Staging e produção funcionando
+
+Prints tirados **pelo próprio pipeline** (Chrome headless no runner), logo depois do smoke test:
+
+| Staging (`:8082`) | Produção (`:8083`) |
+|---|---|
+| ![Swagger em staging](docs/evidencias/pipeline-staging-swagger.png) | ![Swagger em produção](docs/evidencias/pipeline-production-swagger.png) |
+
+Os mesmos ambientes reproduzidos lado a lado na máquina local com `scripts/deploy.sh`:
+
+![Containers, redes e volumes](docs/evidencias/local-docker.png)
+
+![Smoke tests locais](docs/evidencias/local-smoke-tests.png)
+
+Em produção a conta de demonstração é recusada (401), porque produção não tem seed:
 
 ![Login recusado em produção](docs/evidencias/local-production-login.png)
-
-**Smoke tests** dos dois ambientes:
-
-![Smoke tests](docs/evidencias/local-smoke-tests.png)
 
 ---
 

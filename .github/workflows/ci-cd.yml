@@ -190,7 +190,7 @@ jobs:
           google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
             --window-size=1440,1100 --virtual-time-budget=15000 \
             --screenshot=evidencias/staging-swagger.png \
-            http://localhost:8082/swagger-ui/index.html || true
+            http://localhost:8082/swagger-ui/index.html 2>/dev/null || true
           curl -s http://localhost:8082/actuator/health > evidencias/staging-health.json || true
           curl -s http://localhost:8082/v3/api-docs | jq '{info, "x-environment"}' \
             > evidencias/staging-openapi-info.json || true
@@ -258,7 +258,7 @@ jobs:
           google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
             --window-size=1440,1100 --virtual-time-budget=15000 \
             --screenshot=evidencias/production-swagger.png \
-            http://localhost:8083/swagger-ui/index.html || true
+            http://localhost:8083/swagger-ui/index.html 2>/dev/null || true
           curl -s http://localhost:8083/actuator/health > evidencias/production-health.json || true
           curl -s http://localhost:8083/v3/api-docs | jq '{info, "x-environment"}' \
             > evidencias/production-openapi-info.json || true
