@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-#
-# Faz o deploy de uma imagem ja publicada em um ambiente. Usado pelo pipeline (jobs
-# deploy-staging e deploy-production) e por quem quiser reproduzir o deploy na mao.
-#
-#   scripts/deploy.sh staging    ghcr.io/alexcajefelix/fiap-aguia-branca:sha-abc1234
-#   scripts/deploy.sh production ghcr.io/alexcajefelix/fiap-aguia-branca:sha-abc1234
-#   scripts/deploy.sh staging --down          # derruba o ambiente (volumes ficam)
-#
-# Variaveis lidas do ambiente ou de deploy/<ambiente>.env: JWT_SECRET (obrigatoria),
-# APP_PORT, APP_VERSION, GEMINI_API_KEY.
 
 set -euo pipefail
 
@@ -50,8 +40,6 @@ export APP_VERSION="${APP_VERSION:-${APP_IMAGE##*:}}"
 azul "Deploy de $APP_IMAGE em $AMBIENTE (porta $APP_PORT)"
 "${COMPOSE[@]}" config --quiet
 
-# --pull missing: usa a imagem local se ja existir (o job acabou de baixar ou de buildar) e
-# baixa do registry caso contrario. --wait so devolve quando os healthchecks ficam verdes.
 "${COMPOSE[@]}" up -d --no-build --pull missing --remove-orphans --wait --wait-timeout 240
 
 "${COMPOSE[@]}" ps

@@ -1,18 +1,8 @@
-# Override de STAGING. Uso (o scripts/deploy.sh monta isto sozinho):
-#
-#   APP_IMAGE=ghcr.io/alexcajefelix/fiap-aguia-branca:sha-abc1234 \
-#   docker compose -p aguiabranca-staging \
-#     -f docker-compose.yml -f docker-compose.staging.yml up -d --wait
-#
-# Mesma imagem que vai para producao. Diferencas para producao: profile staging (que carrega
-# a massa de demonstracao para QA e smoke test) e porta 8082.
-
 services:
   db:
     ports: !reset []
 
   app:
-    # Staging nunca builda: roda a imagem que o pipeline publicou no registry.
     build: !reset null
     image: ${APP_IMAGE:?defina APP_IMAGE com a imagem publicada no registry}
     ports: !override
@@ -20,7 +10,6 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: staging
       APP_ENVIRONMENT: staging
-      # Sem default: o deploy falha aqui, e nao com o segredo publico de dev.
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (secret do environment staging no GitHub)}
     deploy:
       resources:
@@ -29,5 +18,4 @@ services:
 
 networks:
   backend:
-    # Rede sem rota para fora: o banco nao fala com a internet, nem a internet com ele.
     internal: true

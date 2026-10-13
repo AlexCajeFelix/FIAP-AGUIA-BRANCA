@@ -1,5 +1,3 @@
-# Profile de producao. Sem seed (o DevSeedRunner so existe em dev e staging) e sem default para
-# JWT_SECRET: a aplicacao nao sobe se o segredo nao vier do ambiente.
 server:
   shutdown: graceful
 

@@ -1,12 +1,3 @@
-# Override de PRODUCAO. Uso (o scripts/deploy.sh monta isto sozinho):
-#
-#   APP_IMAGE=ghcr.io/alexcajefelix/fiap-aguia-branca:sha-abc1234 \
-#   docker compose -p aguiabranca-production \
-#     -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
-#
-# A imagem e exatamente a que passou pelo staging (mesmo digest). Sem seed: em producao as
-# contas de desenvolvimento nao existem por construcao.
-
 services:
   db:
     ports: !reset []

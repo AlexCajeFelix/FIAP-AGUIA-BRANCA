@@ -1,16 +1,11 @@
 name: CI/CD
 
-# PR:              build + testes + build da imagem (sem publicar)
-# push na main:    build + testes -> imagem no GHCR -> deploy staging -> deploy producao
-# workflow_dispatch: o mesmo fluxo da main, disparado na mao (Actions -> CI/CD -> Run workflow)
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 
-# PR novo cancela o run anterior do mesmo PR. Na main nao: cancelar no meio deixaria um
-# ambiente pela metade.
 concurrency:
   group: ci-cd-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -22,7 +17,6 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # O nome "build" e o status check exigido pela branch protection da main.
   build:
     name: build
     runs-on: ubuntu-24.04
@@ -36,8 +30,6 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # verify = compila, roda os testes unitarios e de integracao (MongoDB real via
-      # Testcontainers) e gera o contrato OpenAPI subindo a aplicacao.
       - name: Build e testes automatizados
         run: ./mvnw -B verify
 
@@ -101,7 +93,6 @@ jobs:
       - name: Define nome e tags da imagem
         id: tags
         run: |
-          # O GHCR so aceita nome em minusculas; o dono do repo tem maiusculas.
           REPO="${GITHUB_REPOSITORY,,}"
           VERSION="sha-${GITHUB_SHA::7}"
           IMAGE="$REGISTRY/$REPO:$VERSION"
@@ -110,7 +101,6 @@ jobs:
             echo "image=$IMAGE"
             echo "all<<EOF"
             echo "$IMAGE"
-            # :main acompanha a ponta da main; staging/production sao promovidas no deploy.
             [ "$GITHUB_REF" = refs/heads/main ] && echo "$REGISTRY/$REPO:main"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
@@ -125,7 +115,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Em PR so builda (prova que o Dockerfile funciona); na main publica no registry.
       - name: Build e push da imagem
         id: push
         uses: docker/build-push-action@v7
@@ -195,7 +184,6 @@ jobs:
           curl -s http://localhost:8082/v3/api-docs | jq '{info, "x-environment"}' \
             > evidencias/staging-openapi-info.json || true
 
-      # Mesma imagem, nova tag: o que chega em producao e o digest que passou aqui.
       - name: Promove a imagem para a tag staging
         run: docker buildx imagetools create -t "${IMAGE%:*}:staging" "$IMAGE"
 
@@ -222,8 +210,6 @@ jobs:
     needs: [docker-image, deploy-staging]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
-    # O environment production exige aprovacao manual (Settings -> Environments): o job fica
-    # esperando ate alguem com permissao aprovar o deploy.
     environment: production
     concurrency:
       group: deploy-production

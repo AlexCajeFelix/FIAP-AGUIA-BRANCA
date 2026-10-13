@@ -15,8 +15,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfig {
 
-    // Versao e ambiente no contrato: o smoke test do pipeline le info.version para confirmar que
-    // o deploy subiu exatamente a imagem que acabou de ser construida.
     @Bean
     public OpenAPI hubOpenApi(@Value("${app.version}") String version,
             @Value("${app.environment}") String environment) {
